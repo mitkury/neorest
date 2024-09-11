@@ -4,7 +4,7 @@ export type SendAndForgetMsgID = -1;
 
 export type ConnectionSecret = string;
 
-export type Payload = object | string | number | boolean | null | object[] | string[] | number[] | boolean[];
+export type Payload = object | string | number | boolean | undefined | null | object[] | string[] | number[] | boolean[];
 
 export type SentMessages = {
   wrappedMsg: MsgWrapper;

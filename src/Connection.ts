@@ -4,6 +4,9 @@ import {
   MsgDataSet, MsgType, MsgWrapper, SentMessages, MsgResponse, Payload, new_MsgWrapper, new_MsgRoute, MsgID, RouteResponse, new_RouteResponse, msg_ConnDataSet, MsgRoute, ConnectionSecret, MsgSubscribeToRoute, ON_ROUTE, MsgUnsubscribeFromRoute, OFF_ROUTE, pingMsg, PING, new_MsgResponseWithCode, new_MsgResponseOK, new_MsgGenericError, RouteVerb, new_RouteResponseError, new_SendAndForgetMsgWrapper,
 } from "./types.ts";
 import { TrackedPromise } from "./helpers/trackedPromise.ts";
+import { CommunicationStrategy } from "./communicationStrategies/CommunicationStrategy.ts";
+import { WebSocketStrategy } from "./communicationStrategies/WebSocketStrategy.ts";
+import { HttpStrategy } from "./communicationStrategies/HttpStrategy.ts";
 
 type MessageResponsePair = {
   wrapper: MsgWrapper;
@@ -15,7 +18,6 @@ export class Connection {
   private static SEND_LIMIT_PER_SEC = 100;
   private static CLOSE_ON_SERVER_AFTER_MS = 5000;
 
-  private socket?: WebSocket;
   private nextMsgId: MsgID = 0;
   private isClient = false;
   private messagesToAck: SentMessages[] = [];
@@ -24,6 +26,8 @@ export class Connection {
   private callbacks: Map<MsgID, (response: RouteResponse) => void> = new Map();
   private messagesSentInASecond = 0;
   private header: Record<string, Payload> = {};
+  private strategy: CommunicationStrategy;
+  private closingTimer: ReturnType<typeof setTimeout> | null = null;
   
   onOpen = () => { };
   onDataSet: (data: [string, Payload]) => void = () => { };
@@ -33,28 +37,26 @@ export class Connection {
   onClose: () => void = () => { };
   onClientConnect: () => void = () => { };
 
-  static newClient(ws?: WebSocket): Connection {
-    const conn = new Connection(ws, newConnectionSecret(), true);
+  static newClient(strategy: CommunicationStrategy): Connection {
+    const conn = new Connection(strategy, newConnectionSecret(), true);
     return conn;
   }
 
-  static newServer(ws: WebSocket, onDataSet: (data: [string, Payload]) => void): Connection {
-    const conn = new Connection(ws);
+  static newServer(strategy: CommunicationStrategy, onDataSet: (data: [string, Payload]) => void): Connection {
+    const conn = new Connection(strategy);
     conn.onDataSet = onDataSet;
     return conn;
   }
 
-  private constructor(ws?: WebSocket, secret: ConnectionSecret = "", isClient = false) {
+  private constructor(strategy: CommunicationStrategy, secret: ConnectionSecret = "", isClient = false) {
+    this.strategy = strategy;
     this.header['secret'] = secret;
-    this.socket = ws;
     this.isClient = isClient;
 
-    if (ws) {
-      this.setSocket(ws);
-    }
+    this.setupStrategyHandlers();
 
     setInterval(() => {
-      if (this.socket?.readyState !== WebSocket.OPEN) {
+      if (!this.strategy.isConnected()) {
         return;
       }
 
@@ -79,59 +81,19 @@ export class Connection {
     return this.header['secret'] as ConnectionSecret || '';
   }
 
-  closingTimer: number | ReturnType<typeof setTimeout> = -1;
+  public async connect(): Promise<void> {
+    await this.strategy.connect();
+    this.onOpen();
+  }
 
-  public setSocket(ws: WebSocket) {
-    this.socket = ws;
-    this.socket.onmessage = this.handleSocketEvent.bind(this);
-
-    clearTimeout(this.closingTimer);
-
-    this.socket.onclose = () => {
-      if (this.isClient) {
-        this.onClose();
-        return;
-      }
-
-      this.closingTimer = setTimeout(() => {
-        this.onClose();
-      }, Connection.CLOSE_ON_SERVER_AFTER_MS);
-    }
-
-    this.socket.onopen = () => {
-    }
-
-    this.socket.onerror = (e) => {
-      console.error("Socket error", e);
-    }
-
-    if (this.isClient) {
-      // @TODO: turn into a method for setting any data. 
-      // @TODO: allow to send the whole 'header' array in one go.
-      const msgId = this.postAndExpectResponse(msg_ConnDataSet('secret', this.header['secret'] as string));
-      
-      this.callbacks.set(msgId, (response: RouteResponse) => {
-        if (!response.error) {
-          const data = response.data as [string, Payload]
-          this.header[data[0]] = data[1];
-          if (this.header['secret']) {
-            this.onClientConnect();
-          }
-        } else {
-          this.header['secret'] = '';
-          // @TODO: handle if the server rejects the secret.
-        }        
-      });
-    }
-
-    this.socket.onopen = () => {
-      this.sendMessagesFromLaterList();
-    }
+  public close() {
+    this.clearClosingTimer();
+    this.strategy.disconnect();
   }
 
   private async pingPong() {
     while (true) {
-      if (this.socket?.readyState !== WebSocket.OPEN) {
+      if (!this.strategy.isConnected()) {
         // Just wait for a bit and check again. Not too often to not be wasteful.
         await new Promise((resolve) => setTimeout(resolve, 100));
         continue;
@@ -188,10 +150,6 @@ export class Connection {
     this.postAndForget(msg);
   }
 
-  public close() {
-    this.socket?.close();
-  }
-
   private sendMessagesFromLaterList() {
     for (const msg of this.messagesToSendAfterReconnect) {
       this.sendWrappedMsg(msg);
@@ -216,7 +174,7 @@ export class Connection {
     const id = this.nextMsgId++;
     const wrappedMsg = new_MsgWrapper(id, msg);
 
-    if (this.socket?.readyState === WebSocket.OPEN) {
+    if (this.strategy.isConnected()) {
       try {
         this.sendWrappedMsg(wrappedMsg);
       } catch (e) {
@@ -241,7 +199,7 @@ export class Connection {
     const wrappedMsg = new_SendAndForgetMsgWrapper(msg);
 
     // We drop 'post and forget' messages if the socket is not open.
-    if (this.socket?.readyState === WebSocket.OPEN) {
+    if (this.strategy.isConnected()) {
       try {
         this.sendWrappedMsg(wrappedMsg);
       } catch (e) {
@@ -280,12 +238,10 @@ export class Connection {
       }
     }
 
-    this.socket?.send(JSON.stringify(wrappedMsg));
+    this.strategy.send(wrappedMsg);
   }
 
-  private handleSocketEvent(event: MessageEvent) {
-    const wrapper = JSON.parse(event.data) as MsgWrapper;
-
+  private handleSocketEvent(wrapper: MsgWrapper) {
     this.handleMessage(wrapper);
   }
 
@@ -438,6 +394,61 @@ export class Connection {
         this.messagesToAck.splice(i, 1);
         return;
       }
+    }
+  }
+
+  /**
+   * Sets a new communication strategy for the connection.
+   * This method will close the current connection, set the new strategy, and then reconnect.
+   * @param newStrategy The new communication strategy to use
+   */
+  public async setStrategy(newStrategy: CommunicationStrategy): Promise<void> {
+    this.close();
+    this.strategy = newStrategy;
+    this.setupStrategyHandlers();
+    await this.connect();
+    this.sendMessagesFromLaterList();
+  }
+
+  /**
+   * Returns the type of the current communication strategy.
+   * @returns 'websocket' if the current strategy is WebSocketStrategy, 'http' if it's HttpStrategy
+   * @throws Error if the strategy type is unknown
+   */
+  public getStrategyType(): 'websocket' | 'http' {
+    if (this.strategy instanceof WebSocketStrategy) {
+      return 'websocket';
+    } else if (this.strategy instanceof HttpStrategy) {
+      return 'http';
+    }
+    throw new Error("Unknown strategy type");
+  }
+
+  private setupStrategyHandlers() {
+    this.strategy.onMessage(this.handleSocketEvent.bind(this));
+    
+    this.strategy.onClose(() => {
+      if (this.isClient) {
+        this.onClose();
+        return;
+      }
+
+      this.clearClosingTimer();
+      this.closingTimer = setTimeout(() => {
+        this.onClose();
+      }, Connection.CLOSE_ON_SERVER_AFTER_MS);
+    });
+
+    this.strategy.onOpen(() => {
+      this.clearClosingTimer();
+      this.onOpen();
+    });
+  }
+
+  private clearClosingTimer() {
+    if (this.closingTimer) {
+      clearTimeout(this.closingTimer);
+      this.closingTimer = null;
     }
   }
 }

@@ -1,4 +1,7 @@
-import { Connection as Connection } from "./Connection";
+import { Connection } from "./Connection";
+import { CommunicationStrategy } from "./communicationStrategies/CommunicationStrategy";
+import { WebSocketStrategy } from "./communicationStrategies/WebSocketStrategy";
+import { HttpStrategy } from "./communicationStrategies/HttpStrategy";
 import {
   new_MsgSubscribeToRoute,
   new_MsgUnsubscribeFromRoute,
@@ -17,23 +20,30 @@ export class Client {
   > = {};
   private reconnectTimeout: number | ReturnType<typeof setTimeout> = -1;
 
-  public getURL() {
-    return this.url;
-  }
-
-  public isConnected() {
-    return this.isFullyConnected;
-  }
-
-  constructor(url?: string) {
+  constructor(url?: string, strategyType: 'websocket' | 'http' = 'websocket') {
     if (url) {
-      const socket = new WebSocket(url);
-      this.conn = Connection.newClient(socket);
       this.url = url;
+      const strategy = this.createStrategy(strategyType, url);
+      this.conn = Connection.newClient(strategy);
     } else {
-      this.conn = Connection.newClient();
+      throw new Error("URL is required to create a client connection");
     }
 
+    this.setupConnectionHandlers();
+  }
+
+  private createStrategy(type: 'websocket' | 'http', url: string): CommunicationStrategy {
+    switch (type) {
+      case 'websocket':
+        return new WebSocketStrategy(url);
+      case 'http':
+        return new HttpStrategy(url);
+      default:
+        throw new Error(`Unsupported strategy type: ${type}`);
+    }
+  }
+
+  private setupConnectionHandlers() {
     this.conn.onRouteMessage = async (_, msg) => {
       const sub = this.subscribedRoutes[msg.route];
       if (sub) {
@@ -49,57 +59,56 @@ export class Client {
 
     this.conn.onClose = () => {
       this.isFullyConnected = false;
-
       clearTimeout(this.reconnectTimeout);
-
       console.error("Connection closed, re-connecting...");
-
-      this.reconnectTimeout = setTimeout(() => {
-        // We try to re-connect immidiately upon the connection closing.
-        // We send a secret to the to the endpoint to re-establish the same connection.
-        this.reconnect();
-      }, 500);
+      this.reconnectTimeout = setTimeout(() => this.reconnect(), 500);
     };
   }
 
-  private reconnect() {
+  public getURL() {
+    return this.url;
+  }
+
+  public isConnected() {
+    return this.isFullyConnected;
+  }
+
+  private static getUrlWithSecret(url: string, secret: string): string {
+    const urlObject = new URL(url);
+    urlObject.searchParams.set('secret', secret);
+    return urlObject.toString();
+  }
+
+  private async reconnect() {
     if (!this.url) {
       return;
     }
 
     const secret = this.conn.getSecret();
     const urlWithSecret = Client.getUrlWithSecret(this.url, secret);
-    const newSocket = new WebSocket(urlWithSecret);
-    this.conn.setSocket(newSocket);
-    this.resubscribeToRoutes();
+    const newStrategy = this.createStrategy(this.conn.getStrategyType(), urlWithSecret);
+    await this.conn.setStrategy(newStrategy);
+    await this.resubscribeToRoutes();
   }
 
-  private resubscribeToRoutes() {
+  private async resubscribeToRoutes() {
     for (const route in this.subscribedRoutes) {
-      this.conn.post(new_MsgSubscribeToRoute(route), (response) => {
-        if (response.error) {
-          console.error(`Failed to subscribe to route "${route}"`);
-          // Remove the subscription if the server rejected it
-          delete this.subscribedRoutes[route];
-        }
-      });
+      try {
+        await this.conn.post(new_MsgSubscribeToRoute(route));
+      } catch (error) {
+        console.error(`Failed to resubscribe to route "${route}"`, error);
+      }
     }
   }
 
-  private static getUrlWithSecret(url: string, secret: string) {
-    const queryExists = url.includes("?");
-    const base = queryExists ? url.split("?")[0] : url; // Get the base URL without query parameters
-    const queryParams = queryExists ? url.split("?")[1] : "";
-    const existingParams = new URLSearchParams(queryParams);
-    existingParams.set("connsecret", secret); // Set the connsecret, replacing if exists
-    const urlWithSecret = `${base}?${existingParams.toString()}`;
-
-    return urlWithSecret;
-  }
-
-  public setUrl(url: string) {
-    this.conn.setSocket(new WebSocket(url));
+  public async setUrl(url: string, strategyType?: 'websocket' | 'http'): Promise<void> {
     this.url = url;
+    const secret = this.conn.getSecret();
+    const urlWithSecret = Client.getUrlWithSecret(url, secret);
+    const newStrategyType = strategyType || this.conn.getStrategyType();
+    const newStrategy = this.createStrategy(newStrategyType, urlWithSecret);
+    await this.conn.setStrategy(newStrategy);
+    await this.resubscribeToRoutes();
   }
 
   public close() {
@@ -198,3 +207,4 @@ export class Client {
     delete this.subscribedRoutes[route];
   }
 }
+

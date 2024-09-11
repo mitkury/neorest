@@ -48,6 +48,9 @@ export class Router {
         console.error("Reconnect secret provided, but no connection found");
       }
 
+      // @TODO: here perhap use a communication strategy instead for 
+      // the server, using a special http server that can do
+      // http and websocket.
       const conn = Connection.newServer(socket, (data) => {
         if (data[0] === "secret") {
           const secret = data[1] as ConnectionSecret;
