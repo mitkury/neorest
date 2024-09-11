@@ -1,0 +1,6 @@
+{
+  "deno.enablePaths": [
+    "./tests"
+  ],
+  "deno.lint": true,
+}

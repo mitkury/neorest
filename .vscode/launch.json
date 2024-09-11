@@ -1,0 +1,42 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "serve-html",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/tests/back/serveHtml.ts",
+      "cwd": "${workspaceFolder}/tests/back",
+      "runtimeExecutable": "deno",
+      "runtimeArgs": [
+        "run",
+        "--inspect-wait",
+        "--allow-net",
+        "--allow-read"
+      ],
+      "attachSimplePort": 9229
+    },
+    {
+      "name": "start-server",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/tests/back/server.ts",
+      "cwd": "${workspaceFolder}/tests/back",
+      "runtimeExecutable": "deno",
+      "runtimeArgs": [
+        "run",
+        "--allow-all",
+      ],
+      "attachSimplePort": 9230
+    }
+  ],
+  "compounds": [
+    {
+      "name": "👉 Test Neorest",
+      "configurations": [
+        "serve-html",
+        "start-server",
+      ]
+    },
+  ]
+}
