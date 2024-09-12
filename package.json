@@ -1,0 +1,25 @@
+{
+  "type": "module",
+  "name": "neorest",
+  "description": "REST APIs with WebSockets. Do regular REST operations (GET, POST, DELETE) on routes, and subscribe to them.",
+  "version": "0.0.2",
+  "author": "Dmitry Kury (https://dkury.com)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mitkury/neorest.git"
+  },
+  "homepage": "https://github.com/mitkury/neorest",
+  "keywords": [
+    "REST",
+    "WebSockets",
+    "API",
+    "Real-time",
+    "Subscriptions"
+  ],
+  "files": [
+    "js_build/",
+    "LICENSE"
+  ],
+  "main": "./js_build/index.js"
+}
