@@ -84,20 +84,21 @@ export class Client {
       return;
     }
 
+    // @TODO: consider making secret part of a strategy. E.g we don't need it for http.
     const secret = this.conn.getSecret();
     const urlWithSecret = Client.getUrlWithSecret(this.url, secret);
     const newStrategy = this.createStrategy(this.conn.getStrategyType(), urlWithSecret);
     await this.conn.setStrategy(newStrategy);
-    await this.resubscribeToRoutes();
+    this.resubscribeToRoutes();
   }
 
-  private async resubscribeToRoutes() {
+  private resubscribeToRoutes() {
     for (const route in this.subscribedRoutes) {
-      try {
-        await this.conn.post(new_MsgSubscribeToRoute(route));
-      } catch (error) {
-        console.error(`Failed to resubscribe to route "${route}"`, error);
-      }
+      this.conn.post(new_MsgSubscribeToRoute(route)).then((response) => {
+        if (response.error) {
+          console.error(`Failed to resubscribe to route "${route}"`, response.error);
+        }
+      });
     }
   }
 
@@ -108,7 +109,7 @@ export class Client {
     const newStrategyType = strategyType || this.conn.getStrategyType();
     const newStrategy = this.createStrategy(newStrategyType, urlWithSecret);
     await this.conn.setStrategy(newStrategy);
-    await this.resubscribeToRoutes();
+    this.resubscribeToRoutes();
   }
 
   public close() {
