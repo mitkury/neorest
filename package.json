@@ -2,7 +2,7 @@
   "type": "module",
   "name": "neorest",
   "description": "REST APIs with WebSockets. Do regular REST operations (GET, POST, DELETE) on routes, and subscribe to them.",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "author": "Dmitry Kury (https://dkury.com)",
   "license": "MIT",
   "repository": {
