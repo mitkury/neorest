@@ -94,7 +94,7 @@ export class Client {
 
   private resubscribeToRoutes() {
     for (const route in this.subscribedRoutes) {
-      this.conn.post(new_MsgSubscribeToRoute(route)).then((response) => {
+      this.conn.post(new_MsgSubscribeToRoute(route), (response) => {
         if (response.error) {
           console.error(`Failed to resubscribe to route "${route}"`, response.error);
         }

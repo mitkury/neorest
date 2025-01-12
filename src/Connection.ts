@@ -14,6 +14,7 @@ type MessageResponsePair = {
 }
 
 export class Connection {
+  // Acks should be part of a strategy. E.g, we don't need acks in http.
   private static RESEND_NOT_ANSWERED_MESSAGES_AFTER_MS = 3000;
   private static SEND_LIMIT_PER_SEC = 100;
   private static CLOSE_ON_SERVER_AFTER_MS = 5000;
@@ -64,7 +65,6 @@ export class Connection {
       for (let i = 0; i < this.messagesToAck.length; i++) {
         const msg = this.messagesToAck[i];
         if (now - msg.sentAt > Connection.RESEND_NOT_ANSWERED_MESSAGES_AFTER_MS) {
-
           this.sendWrappedMsg(msg.wrappedMsg, i);
         }
       }
