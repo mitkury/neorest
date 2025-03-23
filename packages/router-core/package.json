@@ -3,10 +3,19 @@
   "version": "0.1.0",
   "description": "Core router functionality for Neorest",
   "main": "dist/index.js",
+  "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "scripts": {
-    "build": "tsc",
+    "build": "tsup src/index.ts --format esm --dts --clean --external @neorest/core",
+    "dev": "tsup src/index.ts --format esm --dts --watch --external @neorest/core",
     "clean": "rimraf dist",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -23,6 +32,7 @@
   },
   "devDependencies": {
     "typescript": "^5.0.0",
-    "rimraf": "^5.0.0"
+    "rimraf": "^5.0.0",
+    "tsup": "^8.0.0"
   }
 }

@@ -1,0 +1,5 @@
+{
+  "imports": {
+    "@neorest/core": "../../packages/core/dist/index.js"
+  }
+}

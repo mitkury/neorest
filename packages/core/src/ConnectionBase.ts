@@ -30,7 +30,7 @@ interface MessageResponsePair {
 /**
  * Type for message handlers
  */
-type MessageHandler = (id: MsgID, msg: MsgType) => Promise<MsgResponse | void> | MsgResponse | void;
+type MessageHandler = (id: MsgID, msg: MsgType) => Promise<MsgResponse> | MsgResponse | null;
 
 /**
  * Map of message types to handlers
@@ -223,7 +223,10 @@ export abstract class ConnectionBase {
         const handler = this.messageHandlers[msg.type];
         
         if (handler) {
-          response = handler(id, msg);
+          const handlerResponse = handler(id, msg);
+          if (handlerResponse !== null) {
+            response = handlerResponse;
+          }
         } else {
           console.error(`No handler for message type: ${msg.type}`);
           response = new_MsgGenericError(id, `Unknown message type: ${msg.type}`);

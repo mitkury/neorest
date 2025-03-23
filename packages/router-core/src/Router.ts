@@ -1,13 +1,13 @@
-import {
+import type {
   ConnectionSecret,
   MsgID,
   MsgRoute,
   Payload,
   RouteResponse,
   RouteVerb,
-  CommunicationStrategy,
-  newConnectionSecret
+  CommunicationStrategy
 } from '@neorest/core';
+import { newConnectionSecret } from '@neorest/core';
 import { ServerConnection } from './ServerConnection';
 import { 
   Key,

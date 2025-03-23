@@ -35,41 +35,41 @@ client.on('/direct-message/edoardo', (res) => {
 - Reconnection handling
 - Multi-platform router support
 
-## Examples
+## Tests
 
-### Deno Example
-
-There's a simplified Deno example that demonstrates the core functionality:
+The project contains integration tests to verify core functionality:
 
 ```bash
-# Run the test script
-deno run -A packages/examples/src/deno-simple/run_test.ts
+# Run the core integration tests
+npm run test:core:integration
 ```
 
-This will:
-1. Start a Deno server with WebSocket support
-2. Connect a client to the server
-3. Subscribe to route updates
-4. Send and receive messages
-5. Broadcast updates to subscribed clients
+These tests verify:
+1. Basic WebSocket communication
+2. Message passing between client and server
+3. Route handling and responses
+4. Error handling
 
 ## Project Structure
 
 The project is organized as a monorepo with the following packages:
 
-- `core`: Core types, interfaces, and utilities
-- `neorest`: Client implementation
-- `router-core`: Router base implementation
-- `router-deno`: Deno-specific router
-- `router-node`: Node.js-specific router
-- `examples`: Usage examples for different platforms
+- `packages/core`: Core types, interfaces, and utilities
+- `packages/neorest`: Client implementation
+- `packages/router-core`: Router base implementation
+- `packages/router-deno`: Deno-specific router
+- `packages/router-node`: Node.js-specific router
+
+Tests are organized in the `tests/` directory, with platform-specific subdirectories.
 
 ## Development Status
 
 This project is under active development. Current progress:
 - ✅ Core architecture
 - ✅ WebSocket strategy
-- ✅ Deno example implementation
+- ✅ Core integration tests
+- ✅ Monorepo structure
 - 🚧 HTTP strategy
 - 🚧 Node.js router
-- 🚧 Documentation and tests
+- 🚧 Browser compatibility
+- 🚧 Authentication and security features
