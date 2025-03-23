@@ -1,7 +1,7 @@
-import { CommunicationStrategy, MsgWrapper, ClientStrategy, ConnectionInfo } from '@neorest/core';
+import { ClientStrategy, MsgWrapper, ConnectionInfo } from '@neorest/core';
 
 /**
- * WebSocket-based communication strategy
+ * WebSocket-based communication strategy using standard browser API
  */
 export class WebSocketStrategy implements ClientStrategy {
   private socket: WebSocket | null = null;
@@ -38,8 +38,12 @@ export class WebSocketStrategy implements ClientStrategy {
       connectionUrl = urlObj.toString();
     }
     
+    // Create WebSocket
     this.socket = new WebSocket(connectionUrl);
     this.connectionInfo.status = 'connecting';
+    
+    // Set up handlers
+    this.setupSocketHandlers();
     
     return new Promise((resolve, reject) => {
       if (!this.socket) {
@@ -47,38 +51,22 @@ export class WebSocketStrategy implements ClientStrategy {
         return;
       }
       
-      this.socket.onopen = () => {
+      const onOpenHandler = () => {
         this.connectionInfo.status = 'connected';
         resolve();
+        // Clean up the temporary handler
+        if (this.socket) this.socket.removeEventListener('open', onOpenHandler);
       };
       
-      this.socket.onerror = (error) => {
+      const onErrorHandler = (event: Event) => {
         this.connectionInfo.status = 'disconnected';
-        reject(error);
+        reject(new Error("WebSocket connection failed"));
+        // Clean up the temporary handler
+        if (this.socket) this.socket.removeEventListener('error', onErrorHandler);
       };
       
-      // Set up other handlers
-      if (this.openCallback) {
-        this.socket.onopen = () => {
-          this.connectionInfo.status = 'connected';
-          if (this.openCallback) this.openCallback();
-          resolve();
-        };
-      }
-      
-      if (this.messageCallback) {
-        this.socket.onmessage = (event) => {
-          const message = JSON.parse(event.data) as MsgWrapper;
-          this.messageCallback!(message);
-        };
-      }
-      
-      if (this.closeCallback) {
-        this.socket.onclose = () => {
-          this.connectionInfo.status = 'disconnected';
-          if (this.closeCallback) this.closeCallback();
-        };
-      }
+      this.socket.addEventListener('open', onOpenHandler);
+      this.socket.addEventListener('error', onErrorHandler);
     });
   }
 
@@ -86,8 +74,15 @@ export class WebSocketStrategy implements ClientStrategy {
    * Disconnect from the server
    */
   disconnect(): void {
-    this.socket?.close();
-    this.socket = null;
+    if (this.socket) {
+      try {
+        this.socket.close();
+      } catch (error) {
+        console.error("Error closing WebSocket:", error);
+      }
+      this.socket = null;
+    }
+    
     this.connectionInfo.status = 'disconnected';
   }
 
@@ -97,7 +92,12 @@ export class WebSocketStrategy implements ClientStrategy {
    */
   send(message: MsgWrapper): void {
     if (this.socket?.readyState === WebSocket.OPEN) {
-      this.socket.send(JSON.stringify(message));
+      try {
+        this.socket.send(JSON.stringify(message));
+      } catch (error) {
+        console.error("Error sending message:", error);
+        this.disconnect();
+      }
     } else {
       throw new Error("WebSocket is not connected");
     }
@@ -110,9 +110,20 @@ export class WebSocketStrategy implements ClientStrategy {
   onMessage(callback: (message: MsgWrapper) => void): void {
     this.messageCallback = callback;
     if (this.socket) {
+      // Remove any existing listener
+      const oldListener = this.socket.onmessage;
+      if (oldListener) {
+        this.socket.removeEventListener('message', oldListener as any);
+      }
+      
+      // Add new listener
       this.socket.onmessage = (event) => {
-        const message = JSON.parse(event.data) as MsgWrapper;
-        this.messageCallback!(message);
+        try {
+          const data = JSON.parse(event.data as string) as MsgWrapper;
+          this.messageCallback!(data);
+        } catch (error) {
+          console.error("Error parsing message:", error);
+        }
       };
     }
   }
@@ -124,9 +135,16 @@ export class WebSocketStrategy implements ClientStrategy {
   onClose(callback: () => void): void {
     this.closeCallback = callback;
     if (this.socket) {
+      // Remove any existing listener
+      const oldListener = this.socket.onclose;
+      if (oldListener) {
+        this.socket.removeEventListener('close', oldListener as any);
+      }
+      
+      // Add new listener
       this.socket.onclose = () => {
         this.connectionInfo.status = 'disconnected';
-        if (this.closeCallback) this.closeCallback();
+        this.closeCallback!();
       };
     }
   }
@@ -138,9 +156,16 @@ export class WebSocketStrategy implements ClientStrategy {
   onOpen(callback: () => void): void {
     this.openCallback = callback;
     if (this.socket) {
+      // Remove any existing listener
+      const oldListener = this.socket.onopen;
+      if (oldListener) {
+        this.socket.removeEventListener('open', oldListener as any);
+      }
+      
+      // Add new listener
       this.socket.onopen = () => {
         this.connectionInfo.status = 'connected';
-        if (this.openCallback) this.openCallback();
+        this.openCallback!();
       };
     }
   }
@@ -167,5 +192,45 @@ export class WebSocketStrategy implements ClientStrategy {
    */
   getConnectionInfo(): ConnectionInfo {
     return this.connectionInfo;
+  }
+  
+  /**
+   * Set up socket handlers
+   */
+  private setupSocketHandlers(): void {
+    if (!this.socket) return;
+    
+    // Set up message handler
+    if (this.messageCallback) {
+      this.socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data as string) as MsgWrapper;
+          this.messageCallback!(data);
+        } catch (error) {
+          console.error("Error parsing message:", error);
+        }
+      };
+    }
+    
+    // Set up close handler
+    if (this.closeCallback) {
+      this.socket.onclose = () => {
+        this.connectionInfo.status = 'disconnected';
+        this.closeCallback!();
+      };
+    }
+    
+    // Set up open handler
+    if (this.openCallback) {
+      this.socket.onopen = () => {
+        this.connectionInfo.status = 'connected';
+        this.openCallback!();
+      };
+    }
+    
+    // Set up error handler
+    this.socket.onerror = (error) => {
+      console.error("WebSocket error:", error);
+    };
   }
 }

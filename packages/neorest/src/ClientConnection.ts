@@ -18,6 +18,7 @@ import {
   Payload,
   newConnectionSecret
 } from '@neorest/core';
+import { createStrategy } from './strategies/index';
 
 /**
  * Client-side connection implementation
@@ -68,8 +69,19 @@ export class ClientConnection extends ConnectionBase {
    */
   public async setUrl(url: string, strategyType?: 'websocket' | 'http'): Promise<void> {
     this.url = url;
-    // Implementation will depend on the specific strategies
-    // This is a placeholder
+    
+    // Close existing connection
+    this.close();
+    
+    // Create new strategy
+    const type = strategyType || this.getStrategyType();
+    const strategy = createStrategy(type, url);
+    
+    // Set the new strategy
+    this.setStrategy(strategy);
+    
+    // Connect with new strategy
+    await this.connect();
   }
 
   /**
@@ -93,10 +105,13 @@ export class ClientConnection extends ConnectionBase {
    * @returns The strategy type
    */
   public getStrategyType(): 'websocket' | 'http' {
-    if (this.strategy instanceof ClientStrategy) {
-      return this.strategy.getConnectionInfo().type as 'websocket' | 'http';
+    const type = (this.strategy as any).type;
+    if (type === 'websocket' || type === 'http') {
+      return type;
     }
-    throw new Error("Unknown strategy type");
+    
+    // Default to websocket
+    return 'websocket';
   }
 
   /**
@@ -303,8 +318,13 @@ export class ClientConnection extends ConnectionBase {
     }
 
     try {
-      // Reconnection logic will be implemented here
-      // This depends on the specific strategies
+      // Create new strategy with same URL
+      const strategyType = this.getStrategyType();
+      const strategy = createStrategy(strategyType, this.url);
+      
+      // Set new strategy and connect
+      this.setStrategy(strategy);
+      await this.connect();
       
       // After reconnection, resubscribe to routes
       this.resubscribeToRoutes();
@@ -312,9 +332,13 @@ export class ClientConnection extends ConnectionBase {
       console.error("Reconnection failed:", error);
       
       // Schedule another reconnection attempt with exponential backoff
+      const initialDelay = this.reconnectOptions?.initialDelay || 500;
+      const factor = this.reconnectOptions?.factor || 1.5;
+      const maxDelay = this.reconnectOptions?.maxDelay || 30000;
+      
       const nextDelay = Math.min(
-        this.reconnectOptions.initialDelay * Math.pow(this.reconnectOptions.factor || 1.5, 1),
-        this.reconnectOptions.maxDelay || 30000
+        initialDelay * Math.pow(factor, 1),
+        maxDelay
       );
       
       this.reconnectTimer = setTimeout(() => this.reconnect(), nextDelay);

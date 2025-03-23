@@ -4,9 +4,9 @@ import {
   RouteVerb,
   BroadcastEvent,
   ConnectionOptions
-} from '../../core/src/index.ts';
-import { ClientConnection } from './ClientConnection.ts';
-import { createStrategy } from './strategies/index.ts';
+} from '@neorest/core';
+import { ClientConnection } from './ClientConnection';
+import { createStrategy } from './strategies/index';
 
 /**
  * Neorest client for connecting to a server
