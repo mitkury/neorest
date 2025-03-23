@@ -2,7 +2,7 @@ import { MsgWrapper, ConnectionSecret } from '@neorest/core';
 import { HttpStrategyBase } from '@neorest/router-core';
 
 /**
- * HTTP long-polling strategy for Deno server
+ * HTTP long-polling strategy for Node.js server
  */
 export class HttpStrategy extends HttpStrategyBase {
   /**
@@ -13,5 +13,5 @@ export class HttpStrategy extends HttpStrategyBase {
     super(clientId);
   }
   
-  // Deno-specific methods can be added here if needed
+  // Node.js-specific methods can be added here as needed
 }

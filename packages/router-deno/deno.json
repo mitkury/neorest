@@ -1,0 +1,30 @@
+{
+  "name": "@neorest/router-deno",
+  "version": "0.1.0",
+  "compilerOptions": {
+    "allowJs": true,
+    "strict": true,
+    "lib": ["deno.window", "deno.ns"],
+    "types": ["./src/types.d.ts"]
+  },
+  "imports": {
+    "@neorest/core": "../core/mod.ts",
+    "@neorest/router-core": "../router-core/mod.ts"
+  },
+  "tasks": {
+    "build": "deno bundle src/index.ts dist/mod.js",
+    "test": "deno test --allow-net tests/"
+  },
+  "fmt": {
+    "include": ["src/"],
+    "indentWidth": 2,
+    "lineWidth": 100,
+    "singleQuote": true
+  },
+  "lint": {
+    "include": ["src/"],
+    "rules": {
+      "tags": ["recommended"]
+    }
+  }
+} 

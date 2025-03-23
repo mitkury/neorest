@@ -25,9 +25,85 @@ export interface RouterOptions {
 }
 
 /**
- * Base router implementation
+ * Server adapter interface for platform-specific server implementations
  */
-export abstract class RouterBase {
+export interface ServerAdapter {
+  /**
+   * Initialize the server
+   * @param router - The router instance
+   * @returns A promise that resolves when the server is initialized
+   */
+  initialize(router: Router): Promise<void>;
+  
+  /**
+   * Start the server
+   * @returns A promise that resolves when the server is started
+   */
+  start(): Promise<void>;
+  
+  /**
+   * Stop the server
+   * @returns A promise that resolves when the server is stopped
+   */
+  stop(): Promise<void>;
+}
+
+/**
+ * Request context for route handlers
+ */
+export interface RequestContext {
+  params: Record<string, string>;
+  data: any;
+  headers: Record<string, string>;
+  sender: ServerConnection;
+  route: string;
+  response?: any;
+  error?: string;
+}
+
+/**
+ * Type for incoming route layer
+ */
+interface InRouteLayer {
+  id: RouteSubID;
+  route: string;
+  regexp: RegExp;
+  match: MatchFunction;
+  keys: string[];
+  verbs: Array<{
+    verb: RouteVerb;
+    handler: (ctx: RequestContext) => void | Promise<void>;
+  }>;
+}
+
+/**
+ * Type for outgoing route layer
+ */
+interface OutRouteLayer {
+  id: RouteSubID;
+  route: string;
+  regexp: RegExp;
+  match: MatchFunction;
+  keys: string[];
+  listeners: Array<{
+    conn: ConnectionSecret;
+    params: string[];
+  }>;
+  validate: (
+    conn: ServerConnection,
+    params: Record<string, string>,
+  ) => boolean | Promise<boolean>;
+}
+
+/**
+ * Type for route subscription ID
+ */
+type RouteSubID = number;
+
+/**
+ * Core router implementation that can be used with any server adapter
+ */
+export class Router {
   /**
    * The next route subscription id
    */
@@ -54,6 +130,11 @@ export abstract class RouterBase {
   protected options: RouterOptions;
 
   /**
+   * Server adapter for platform-specific implementation
+   */
+  private serverAdapter?: ServerAdapter;
+
+  /**
    * Constructor
    * @param options - Router options
    */
@@ -63,6 +144,39 @@ export abstract class RouterBase {
       validateRoutes: true,
       ...options
     };
+  }
+
+  /**
+   * Set the server adapter
+   * @param adapter - The server adapter
+   * @returns This router instance for chaining
+   */
+  setServerAdapter(adapter: ServerAdapter): this {
+    this.serverAdapter = adapter;
+    return this;
+  }
+
+  /**
+   * Start the server
+   * @returns A promise that resolves when the server is started
+   */
+  async listen(): Promise<void> {
+    if (!this.serverAdapter) {
+      throw new Error('Server adapter not set. Call setServerAdapter before listen.');
+    }
+
+    await this.serverAdapter.initialize(this);
+    await this.serverAdapter.start();
+  }
+
+  /**
+   * Stop the server
+   * @returns A promise that resolves when the server is stopped
+   */
+  async close(): Promise<void> {
+    if (this.serverAdapter) {
+      await this.serverAdapter.stop();
+    }
   }
 
   /**
@@ -170,7 +284,7 @@ export abstract class RouterBase {
    * @param reconnectSecret - Optional secret for reconnection
    * @returns The new connection
    */
-  protected handleNewConnection(
+  public handleNewConnection(
     strategy: CommunicationStrategy, 
     reconnectSecret: ConnectionSecret | null = null
   ): ServerConnection {
@@ -199,7 +313,7 @@ export abstract class RouterBase {
       };
 
       conn.onUnsubscribeFromRoute = (route) => {
-        this.unsubsctibeConnectionFromRoute(route, conn.getSecret());
+        this.unsubscribeConnectionFromRoute(route, conn.getSecret());
       };
 
       conn.onClose = () => {
@@ -385,7 +499,7 @@ export abstract class RouterBase {
    * @param path - The route to unsubscribe from
    * @param connSecret - The connection secret
    */
-  private unsubsctibeConnectionFromRoute(path: string, connSecret: ConnectionSecret): void {
+  private unsubscribeConnectionFromRoute(path: string, connSecret: ConnectionSecret): void {
     if (!this.connections[connSecret]) {
       throw new Error(`Connection with id ${connSecret} does not exist`);
     }
@@ -462,10 +576,4 @@ export abstract class RouterBase {
       route.listeners = route.listeners.filter((l) => l.conn !== connSecret);
     }
   }
-
-  /**
-   * Set up the server
-   * @returns A promise that resolves when the server is set up
-   */
-  protected abstract setupServer(): Promise<void>;
 }

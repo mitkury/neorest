@@ -1,7 +1,8 @@
-import { ServerStrategy, MsgWrapper } from '../../../../core/src/index.ts';
+import { ServerStrategy, MsgWrapper } from '@neorest/core';
 
 /**
- * WebSocket strategy for Deno
+ * WebSocket strategy for server-side connections using standard browser WebSocket API.
+ * Can be used in both Node.js and Deno environments.
  */
 export class WebSocketStrategy implements ServerStrategy {
   private socket: WebSocket;
@@ -28,43 +29,78 @@ export class WebSocketStrategy implements ServerStrategy {
    * Set up socket handlers
    */
   private setupSocketHandlers(): void {
-    this.socket.onopen = () => {
-      this.connected = true;
-      if (this.openCallback) {
-        this.openCallback();
-      }
-    };
-
-    this.socket.onclose = () => {
-      this.connected = false;
-      if (this.closeCallback) {
-        this.closeCallback();
-      }
-    };
-
-    this.socket.onmessage = (event) => {
-      if (this.messageCallback) {
-        try {
-          const message = JSON.parse(event.data as string) as MsgWrapper;
-          this.messageCallback(message);
-        } catch (error) {
-          console.error('Error parsing message:', error);
+    // Use addEventListener if available (more reliable across environments)
+    if (typeof this.socket.addEventListener === 'function') {
+      this.socket.addEventListener('open', () => {
+        this.connected = true;
+        if (this.openCallback) {
+          this.openCallback();
         }
-      }
-    };
+      });
 
-    this.socket.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      // Close the connection on error
-      this.socket.close();
-    };
+      this.socket.addEventListener('close', () => {
+        this.connected = false;
+        if (this.closeCallback) {
+          this.closeCallback();
+        }
+      });
+
+      this.socket.addEventListener('message', (event) => {
+        if (this.messageCallback) {
+          try {
+            const message = JSON.parse(event.data as string) as MsgWrapper;
+            this.messageCallback(message);
+          } catch (error) {
+            console.error('Error parsing message:', error);
+          }
+        }
+      });
+
+      this.socket.addEventListener('error', (error) => {
+        console.error('WebSocket error:', error);
+        // Close the connection on error
+        this.socket.close();
+      });
+    } else {
+      // Fall back to onX properties for older environments
+      this.socket.onopen = () => {
+        this.connected = true;
+        if (this.openCallback) {
+          this.openCallback();
+        }
+      };
+
+      this.socket.onclose = () => {
+        this.connected = false;
+        if (this.closeCallback) {
+          this.closeCallback();
+        }
+      };
+
+      this.socket.onmessage = (event) => {
+        if (this.messageCallback) {
+          try {
+            const message = JSON.parse(event.data as string) as MsgWrapper;
+            this.messageCallback(message);
+          } catch (error) {
+            console.error('Error parsing message:', error);
+          }
+        }
+      };
+
+      this.socket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        // Close the connection on error
+        this.socket.close();
+      };
+    }
   }
 
   /**
    * Connect to the client
    */
   async connect(): Promise<void> {
-    // For server-side WebSockets in Deno, the socket is already connected
+    // For server-side WebSockets, the socket is already connected
     // Just make sure we mark it as connected and call the open callback
     this.connected = this.socket.readyState === WebSocket.OPEN;
     
