@@ -1,0 +1,8 @@
+{
+  "imports": {
+    "@neorest/core/": "/Users/dk/repos/neorest/packages/core/src/",
+    "@neorest/router-core/": "/Users/dk/repos/neorest/packages/router-core/src/",
+    "@neorest/router-deno/": "/Users/dk/repos/neorest/packages/router-deno/src/",
+    "@neorest/neorest/": "/Users/dk/repos/neorest/packages/neorest/src/"
+  }
+}

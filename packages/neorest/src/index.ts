@@ -1,0 +1,20 @@
+// Export main client class
+export { Client } from './Client';
+
+// Export strategies for advanced usage
+export { WebSocketStrategy } from './strategies/WebSocketStrategy';
+export { HttpStrategy } from './strategies/HttpStrategy';
+export { createStrategy } from './strategies';
+
+// Export connection class for advanced usage
+export { ClientConnection } from './ClientConnection';
+
+// Re-export types from core
+export {
+  RouteResponse,
+  Payload,
+  RouteVerb,
+  BroadcastEvent,
+  ConnectionOptions,
+  ReconnectOptions,
+} from '@neorest/core';

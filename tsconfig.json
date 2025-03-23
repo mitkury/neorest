@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": ".",
+    "paths": {
+      "@neorest/core": ["packages/core/src"],
+      "@neorest/router-core": ["packages/router-core/src"],
+      "@neorest/router-deno": ["packages/router-deno/src"],
+      "@neorest/router-node": ["packages/router-node/src"],
+      "neorest": ["packages/neorest/src"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}
