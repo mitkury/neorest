@@ -1,0 +1,12 @@
+{
+  "name": "@neorest/tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run --reporter=dot"
+  },
+  "devDependencies": {
+    "vitest": "^1.6.0",
+    "@types/node": "^20.0.0"
+  }
+}
