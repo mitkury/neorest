@@ -132,7 +132,7 @@ export class Router {
   /**
    * Server adapter for platform-specific implementation
    */
-  private serverAdapter?: ServerAdapter;
+  protected serverAdapter?: ServerAdapter;
 
   /**
    * Constructor
@@ -331,7 +331,7 @@ export class Router {
    * @param msg - The route message
    * @returns The response
    */
-  private async handleRouteMessage(
+  protected async handleRouteMessage(
     connSecret: ConnectionSecret,
     msgId: MsgID,
     msg: MsgRoute,

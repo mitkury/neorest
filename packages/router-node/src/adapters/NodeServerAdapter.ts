@@ -1,7 +1,11 @@
 import { ConnectionSecret } from '@neorest/core';
 import { Router, ServerAdapter } from '@neorest/router-core';
-import { WebSocketStrategy } from '@neorest/router-core';
 import { HttpStrategy } from '../strategies/HttpStrategy';
+import { WebSocketStrategy } from '../strategies/WebSocketStrategy';
+import { createServer as createHttpServer, Server as HttpServer } from 'http';
+import { createServer as createHttpsServer, Server as HttpsServer } from 'https';
+import { WebSocketServer } from 'ws';
+import type { IncomingMessage, ServerResponse } from 'http';
 
 /**
  * Node server adapter options
@@ -22,8 +26,8 @@ export interface NodeServerAdapterOptions {
 export class NodeServerAdapter implements ServerAdapter {
   private options: NodeServerAdapterOptions;
   private router?: Router;
-  private server: any = null; // This would be http.Server or https.Server
-  private wsServer: any = null; // This would be WebSocket.Server
+  private server: HttpServer | HttpsServer | null = null;
+  private wsServer: WebSocketServer | null = null;
   private httpConnections: Map<string, HttpStrategy> = new Map();
 
   /**
@@ -44,12 +48,24 @@ export class NodeServerAdapter implements ServerAdapter {
    */
   async initialize(router: Router): Promise<void> {
     this.router = router;
-    
-    // In a real implementation, this would:
-    // 1. Create an HTTP/HTTPS server based on options
-    // 2. Set up WebSocket server
-    // 3. Set up route handlers for HTTP requests
-    
+
+    // Create HTTP/HTTPS server
+    if (this.options.ssl?.key && this.options.ssl?.cert) {
+      this.server = createHttpsServer({ key: this.options.ssl.key, cert: this.options.ssl.cert }, (req, res) => this.handleHttpRequest(req, res));
+    } else {
+      this.server = createHttpServer((req, res) => this.handleHttpRequest(req, res));
+    }
+
+    // Create WebSocket server bound to the HTTP server
+    this.wsServer = new WebSocketServer({ noServer: true });
+
+    this.server.on('upgrade', (request: IncomingMessage, socket, head) => {
+      // Only accept websocket upgrades to keep other upgrades untouched
+      this.wsServer!.handleUpgrade(request, socket as any, head, (ws) => {
+        this.handleWebSocketConnection(ws as any, request);
+      });
+    });
+
     console.log(`Initializing Node.js server on ${this.options.hostname}:${this.options.port}`);
   }
 
@@ -60,11 +76,14 @@ export class NodeServerAdapter implements ServerAdapter {
     if (!this.router) {
       throw new Error('Router not initialized');
     }
-    
-    // In a real implementation, this would:
-    // 1. Start listening on the configured port
-    // 2. Set up error handling
-    
+    if (!this.server) {
+      throw new Error('HTTP server not initialized');
+    }
+
+    await new Promise<void>((resolve) => {
+      this.server!.listen(this.options.port, this.options.hostname, () => resolve());
+    });
+
     console.log(`Server listening on http://${this.options.hostname}:${this.options.port}`);
   }
 
@@ -78,11 +97,19 @@ export class NodeServerAdapter implements ServerAdapter {
     }
     this.httpConnections.clear();
     
-    // In a real implementation, this would:
-    // 1. Close the HTTP server
-    // 2. Close the WebSocket server
-    // 3. Clean up any resources
-    
+    if (this.wsServer) {
+      await new Promise<void>((resolve) => {
+        this.wsServer!.clients.forEach((client) => client.terminate());
+        this.wsServer!.close(() => resolve());
+      });
+      this.wsServer = null;
+    }
+
+    if (this.server) {
+      await new Promise<void>((resolve) => this.server!.close(() => resolve()));
+      this.server = null;
+    }
+
     console.log('Server stopped');
   }
 
@@ -91,11 +118,11 @@ export class NodeServerAdapter implements ServerAdapter {
    * @param socket - The WebSocket connection
    * @param request - The HTTP request
    */
-  private handleWebSocketConnection(socket: WebSocket, request: any): void {
+  private handleWebSocketConnection(socket: any, request: IncomingMessage): void {
     if (!this.router) return;
     
     // Get reconnect secret from URL
-    const url = new URL(request.url, `http://${request.headers.host}`);
+    const url = new URL(request.url || '/', `http://${request.headers.host}`);
     const reconnectSecret = url.searchParams.get('secret');
     
     // Create strategy and add connection
@@ -108,7 +135,7 @@ export class NodeServerAdapter implements ServerAdapter {
    * @param req - The HTTP request
    * @param res - The HTTP response
    */
-  private async handleHttpRequest(req: any, res: any): Promise<void> {
+  private async handleHttpRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     if (!this.router) {
       res.statusCode = 500;
       res.end('Router not initialized');
@@ -116,7 +143,7 @@ export class NodeServerAdapter implements ServerAdapter {
     }
     
     // Parse the URL and query parameters
-    const url = new URL(req.url, `http://${req.headers.host}`);
+    const url = new URL(req.url || '/', `http://${req.headers.host}`);
     const clientId = url.searchParams.get('clientId');
     const isPoll = url.searchParams.get('poll') === 'true';
     const reconnectSecret = url.searchParams.get('secret');

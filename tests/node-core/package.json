@@ -1,0 +1,12 @@
+{
+  "name": "@neorest/tests-node",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "tsx node_client_server.test.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0"
+  }
+}
+

@@ -24,6 +24,14 @@ export abstract class HttpStrategyBase implements ServerStrategy {
   }
 
   /**
+   * HTTP long-polling strategy is per-connection and does not accept an external connection object.
+   * Implementing to satisfy the ServerStrategy interface.
+   */
+  handleConnection(_: any): void {
+    // No-op for HTTP strategy
+  }
+
+  /**
    * Start a timer to detect inactive connections
    */
   protected startInactivityTimer(): void {

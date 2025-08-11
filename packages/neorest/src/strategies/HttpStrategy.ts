@@ -14,6 +14,7 @@ export class HttpStrategy implements ClientStrategy {
   private pollDelay = 1000; // 1 second
   private pollFailures = 0;
   private maxPollFailures = 3;
+  private clientId: string | null = null;
 
   /**
    * Constructor
@@ -32,15 +33,42 @@ export class HttpStrategy implements ClientStrategy {
    * Connect to the server
    */
   async connect(): Promise<void> {
+    // Perform handshake to obtain a clientId from the server
+    try {
+      const url = new URL(this.connectionInfo.url);
+      const res = await fetch(url.toString(), {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (res.ok) {
+        // Server returns { clientId } when no clientId is provided
+        try {
+          const data = await res.json() as { clientId?: string };
+          if (data && data.clientId) {
+            this.clientId = data.clientId;
+          }
+        } catch {
+          // If response isn't JSON, fall back to generated id below
+        }
+      }
+    } catch (e) {
+      // Handshake failed; proceed with a locally generated id to avoid blocking
+      console.error('HTTP strategy handshake failed, generating local clientId:', e);
+    }
+
+    if (!this.clientId) {
+      this.clientId = Math.random().toString(36).slice(2);
+    }
+    this.connectionInfo.id = this.clientId;
+
     this.connected = true;
     this.connectionInfo.status = 'connected';
     this.pollForMessages();
-    
+
     if (this.openCallback) {
       this.openCallback();
     }
-    
-    return Promise.resolve();
   }
 
   /**
@@ -64,43 +92,52 @@ export class HttpStrategy implements ClientStrategy {
    * Send a message to the server
    * @param message - The message to send
    */
-  async send(message: MsgWrapper): Promise<void> {
+  send(message: MsgWrapper): void {
     if (!this.connected) {
-      throw new Error("HTTP connection is not established");
+      throw new Error('HTTP connection is not established');
     }
 
-    try {
-      // Add auth data to headers
-      const headers: HeadersInit = { 
-        'Content-Type': 'application/json' 
-      };
-      
-      for (const [key, value] of Object.entries(this.authData)) {
-        headers[key] = value;
-      }
-      
-      const response = await fetch(this.connectionInfo.url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(message),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error: ${response.status}`);
-      }
-      
-      // Check if we have a response message
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        const responseData = await response.json();
-        if (responseData && this.messageCallback) {
-          this.messageCallback(responseData as MsgWrapper);
+    const doSend = async () => {
+      try {
+        // Add auth data to headers
+        const headers: HeadersInit = { 'Content-Type': 'application/json' };
+        for (const [key, value] of Object.entries(this.authData)) {
+          (headers as any)[key] = value;
         }
+
+        // Include clientId in URL
+        const url = new URL(this.connectionInfo.url);
+        if (this.clientId) {
+          url.searchParams.set('clientId', this.clientId);
+        }
+
+        const response = await fetch(url.toString(), {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(message),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error: ${response.status}`);
+        }
+
+        // Handle immediate response message if present
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const responseData = await response.json();
+          if (responseData && this.messageCallback) {
+            // Server POST returns a single message (or 202 with no body)
+            this.messageCallback(responseData as MsgWrapper);
+          }
+        }
+      } catch (error) {
+        console.error('Error sending message:', error);
+        throw error;
       }
-    } catch (error) {
-      console.error('Error sending message:', error);
-      throw error;
-    }
+    };
+
+    // Fire-and-forget to comply with interface signature
+    void doSend();
   }
 
   /**
@@ -156,50 +193,53 @@ export class HttpStrategy implements ClientStrategy {
    */
   private pollForMessages(): void {
     this.pollInterval = setInterval(async () => {
-      if (!this.connected) {
-        return;
-      }
-      
+      if (!this.connected) return;
+
       try {
-        // Add auth data to URL
-        let pollUrl = new URL(this.connectionInfo.url);
+        // Build poll URL with clientId and auth
+        const pollUrl = new URL(this.connectionInfo.url);
         pollUrl.searchParams.set('poll', 'true');
-        
+        if (this.clientId) {
+          pollUrl.searchParams.set('clientId', this.clientId);
+        }
         for (const [key, value] of Object.entries(this.authData)) {
           pollUrl.searchParams.set(key, value);
         }
-        
+
         const response = await fetch(pollUrl.toString(), {
-          headers: {
-            'Accept': 'application/json',
-            'X-Poll-ID': this.connectionInfo.id
-          }
+          headers: { 'Accept': 'application/json' }
         });
-        
+
         if (response.status === 204) {
           // No content, keep polling
           this.pollFailures = 0;
           return;
         }
-        
+
         if (!response.ok) {
           throw new Error(`HTTP error: ${response.status}`);
         }
-        
+
         // Reset failure counter on success
         this.pollFailures = 0;
-        
+
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
-          const message = await response.json() as MsgWrapper;
+          const payload = await response.json();
           if (this.messageCallback) {
-            this.messageCallback(message);
+            if (Array.isArray(payload)) {
+              for (const msg of payload) {
+                this.messageCallback(msg as MsgWrapper);
+              }
+            } else {
+              this.messageCallback(payload as MsgWrapper);
+            }
           }
         }
       } catch (error) {
-        console.error("Error polling for messages:", error);
+        console.error('Error polling for messages:', error);
         this.pollFailures++;
-        
+
         if (this.pollFailures >= this.maxPollFailures) {
           console.error(`Max poll failures (${this.maxPollFailures}) reached, disconnecting`);
           this.disconnect();

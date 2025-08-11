@@ -47,8 +47,8 @@
       "packages/core": {
         "packageJson": {
           "dependencies": [
+            "npm:@types/node@20",
             "npm:rimraf@5",
-            "npm:tsup@8",
             "npm:typescript@5"
           ]
         }
@@ -57,8 +57,8 @@
         "packageJson": {
           "dependencies": [
             "npm:@neorest/core@0.1",
+            "npm:@types/node@20",
             "npm:rimraf@5",
-            "npm:tsup@8",
             "npm:typescript@5"
           ]
         }
@@ -67,8 +67,8 @@
         "packageJson": {
           "dependencies": [
             "npm:@neorest/core@0.1",
+            "npm:@types/node@20",
             "npm:rimraf@5",
-            "npm:tsup@8",
             "npm:typescript@5"
           ]
         }
@@ -78,8 +78,8 @@
           "dependencies": [
             "npm:@neorest/core@0.1",
             "npm:@neorest/router-core@0.1",
+            "npm:@types/node@20",
             "npm:rimraf@5",
-            "npm:tsup@8",
             "npm:typescript@5"
           ]
         }
