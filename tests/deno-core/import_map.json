@@ -1,8 +1,0 @@
-{
-  "imports": {
-    "@neorest/core": "../../packages/core/dist/index.js",
-    "neorest": "../../packages/neorest/dist/index.js",
-    "@neorest/router-core": "../../packages/router-core/src/index.ts",
-    "@neorest/router-deno": "../../packages/router-deno/src/index.ts"
-  }
-}

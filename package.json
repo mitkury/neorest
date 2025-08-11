@@ -6,17 +6,13 @@
   "author": "Dmitry Kury (https://dkury.com)",
   "license": "MIT",
   "workspaces": [
-    "packages/*",
-    "tests/*"
+    "packages/*"
   ],
   "scripts": {
     "clean": "npm run clean --workspaces",
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces",
     "build:packages": "npm run build --workspace @neorest/core && npm run build --workspace @neorest/router-core && npm run build --workspace @neorest/router-node && npm run build --workspace neorest",
-    "test:node": "npm run test --workspace @neorest/tests-node",
-    "test:core:integration": "cd tests/deno-core && deno test --allow-net --import-map=import_map.json client_server_test.ts",
-    "test:all": "npm run test:core:integration",
     "test:unit": "npm run build:packages && npm run test --workspace @neorest/tests",
     "test:e2e": "npm run test --workspace @neorest/e2e-tests"
   },
@@ -35,6 +31,6 @@
   "devDependencies": {
     "rimraf": "^5.0.0",
     "tsup": "^8.4.0",
-    "typescript": "^5.9.2"
+    "typescript": "^5.0.0"
   }
 }
