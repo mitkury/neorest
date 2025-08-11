@@ -1,11 +1,12 @@
 import { ConnectionSecret } from '@neorest/core';
 import { Router, ServerAdapter } from '@neorest/router-core';
 import { HttpStrategy } from '../strategies/HttpStrategy';
-import { WebSocketStrategy } from '../strategies/WebSocketStrategy';
+// Removed static import of WebSocketStrategy to avoid pulling 'ws' at module load
 import { createServer as createHttpServer, Server as HttpServer } from 'http';
 import { createServer as createHttpsServer, Server as HttpsServer } from 'https';
-import { WebSocketServer } from 'ws';
+// Removed static import of WebSocketServer from 'ws' to make it optional at runtime
 import type { IncomingMessage, ServerResponse } from 'http';
+import { randomUUID } from 'crypto';
 
 /**
  * Node server adapter options
@@ -27,7 +28,7 @@ export class NodeServerAdapter implements ServerAdapter {
   private options: NodeServerAdapterOptions;
   private router?: Router;
   private server: HttpServer | HttpsServer | null = null;
-  private wsServer: WebSocketServer | null = null;
+  private wsServer: any | null = null; // WebSocketServer is optional
   private httpConnections: Map<string, HttpStrategy> = new Map();
 
   /**
@@ -56,15 +57,20 @@ export class NodeServerAdapter implements ServerAdapter {
       this.server = createHttpServer((req, res) => this.handleHttpRequest(req, res));
     }
 
-    // Create WebSocket server bound to the HTTP server
-    this.wsServer = new WebSocketServer({ noServer: true });
+    // Try to set up WebSocket server bound to the HTTP server, if 'ws' is available
+    try {
+      const { WebSocketServer } = await import('ws');
+      this.wsServer = new WebSocketServer({ noServer: true });
 
-    this.server.on('upgrade', (request: IncomingMessage, socket, head) => {
-      // Only accept websocket upgrades to keep other upgrades untouched
-      this.wsServer!.handleUpgrade(request, socket as any, head, (ws) => {
-        this.handleWebSocketConnection(ws as any, request);
+      this.server.on('upgrade', (request: IncomingMessage, socket, head) => {
+        this.wsServer!.handleUpgrade(request, socket as any, head, async (ws: any) => {
+          await this.handleWebSocketConnection(ws, request);
+        });
       });
-    });
+    } catch (err) {
+      // 'ws' not installed; skip WebSocket support
+      this.wsServer = null;
+    }
 
     console.log(`Initializing Node.js server on ${this.options.hostname}:${this.options.port}`);
   }
@@ -99,7 +105,7 @@ export class NodeServerAdapter implements ServerAdapter {
     
     if (this.wsServer) {
       await new Promise<void>((resolve) => {
-        this.wsServer!.clients.forEach((client) => client.terminate());
+        this.wsServer!.clients.forEach((client: any) => client.terminate());
         this.wsServer!.close(() => resolve());
       });
       this.wsServer = null;
@@ -118,16 +124,19 @@ export class NodeServerAdapter implements ServerAdapter {
    * @param socket - The WebSocket connection
    * @param request - The HTTP request
    */
-  private handleWebSocketConnection(socket: any, request: IncomingMessage): void {
+  private async handleWebSocketConnection(socket: any, request: IncomingMessage): Promise<void> {
     if (!this.router) return;
-    
+
+    // Defer loading the WebSocketStrategy to avoid importing 'ws' unless needed
+    const { WebSocketStrategy } = await import('../strategies/WebSocketStrategy');
+
     // Get reconnect secret from URL
     const url = new URL(request.url || '/', `http://${request.headers.host}`);
     const reconnectSecret = url.searchParams.get('secret');
     
     // Create strategy and add connection
-    const strategy = new WebSocketStrategy(socket);
-    this.router.handleNewConnection(strategy, reconnectSecret as ConnectionSecret);
+    const strategy = new WebSocketStrategy(socket as any);
+    this.router.handleNewConnection(strategy as any, reconnectSecret as ConnectionSecret);
   }
 
   /**
@@ -161,7 +170,7 @@ export class NodeServerAdapter implements ServerAdapter {
     
     // If no client ID, generate one and send it back
     if (!clientId) {
-      const newClientId = crypto.randomUUID();
+      const newClientId = randomUUID();
       res.writeHead(200, {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*'

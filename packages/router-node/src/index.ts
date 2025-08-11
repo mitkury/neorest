@@ -1,8 +1,10 @@
 // Export main router class
-export { NodeRouter, NodeRouterOptions } from './NodeRouter';
+export { NodeRouter } from './NodeRouter';
+export type { NodeRouterOptions } from './NodeRouter';
 
 // Export adapter
-export { NodeServerAdapter, NodeServerAdapterOptions } from './adapters/NodeServerAdapter';
+export { NodeServerAdapter } from './adapters/NodeServerAdapter';
+export type { NodeServerAdapterOptions } from './adapters/NodeServerAdapter';
 
 // Export strategies
 export { HttpStrategy } from './strategies/HttpStrategy';

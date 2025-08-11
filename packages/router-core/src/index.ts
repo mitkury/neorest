@@ -1,5 +1,6 @@
 // Export main router class
-export { Router, RouterOptions, ServerAdapter } from './Router';
+export { Router } from './Router';
+export type { RouterOptions, ServerAdapter } from './Router';
 
 // Export server connection class
 export { ServerConnection } from './ServerConnection';

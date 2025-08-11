@@ -1,5 +1,6 @@
 import type { ServerStrategy, MsgWrapper } from '@neorest/core';
-import { WebSocket } from 'ws';
+// Note: we rely on the standard WebSocket type. In Node, this strategy is only imported at runtime when 'ws' is available.
+// We intentionally avoid importing 'ws' here to prevent hard dependency in HTTP-only scenarios.
 
 /**
  * WebSocket strategy for Node.js server using 'ws'

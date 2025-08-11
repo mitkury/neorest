@@ -18,8 +18,9 @@ async function startServer(port = 8099) {
 async function run() {
   const port = 8099;
   const server = await startServer(port);
+  let client: Client | null = null;
   try {
-    const client = new Client(`http://localhost:${port}`, 'http');
+    client = new Client(`http://localhost:${port}`, 'http');
     await (client as any).conn.connect();
 
     const pong = await client.get('/ping');
@@ -31,10 +32,11 @@ async function run() {
 
     console.log('OK: node client/server basic routes work');
   } finally {
+    try { (client as any)?.close?.(); } catch {}
     await (server as any).close();
   }
 }
 
-run().catch((e) => { console.error(e); process.exit(1); });
+run().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); });
 
 

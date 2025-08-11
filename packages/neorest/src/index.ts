@@ -10,7 +10,7 @@ export { createStrategy } from './strategies';
 export { ClientConnection } from './ClientConnection';
 
 // Re-export types from core
-export {
+export type {
   RouteResponse,
   Payload,
   RouteVerb,
