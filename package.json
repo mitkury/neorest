@@ -10,10 +10,10 @@
   ],
   "scripts": {
     "clean": "npm run clean --workspaces",
-    "build": "npm run build --workspaces",
-    "test": "npm run test --workspaces",
-    "build:packages": "npm run build --workspace @neorest/core && npm run build --workspace @neorest/router-core && npm run build --workspace @neorest/router-node && npm run build --workspace neorest",
-    "test:unit": "npm run build:packages && npm run test --workspace @neorest/tests",
+    "build": "npm run build --workspace @neorest/core && npm run build --workspace @neorest/router-core && npm run build --workspace @neorest/router-node && npm run build --workspace neorest",
+    "pretest": "npm run build",
+    "test": "npm run test --workspace @neorest/tests",
+    "test:unit": "npm run test",
     "test:e2e": "npm run test --workspace @neorest/e2e-tests"
   },
   "repository": {
