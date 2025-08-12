@@ -1,17 +1,15 @@
 # Neorest
 
-REST APIs with WebSockets. Do regular REST operations (GET, POST, DELETE) on routes, and subscribe to them.
+Create real-time routes on top of your REST APIs. Perform regular REST operations (GET, POST, DELETE) on routes, and subscribe to them for live updates. Under the hood, Neorest uses WebSockets (and HTTP long-polling) to deliver real-time events.
 
 ## Why?
 
-Other libraries treat real-time channels as separate from REST APIs. That's unnecessary. When you create an API, you create structure already:
-
+Other libraries treat real-time as separate from REST, adding complexity. When you design an API, you already define routes. If you can GET/POST a route, you can SUBSCRIBE to it.
+For example:
 - `/users/{id}`
 - `/posts/{id}`
 - `/posts/{id}/comments`
 - `/chat/threads/{id}`
-
-If you can POST and GET to these endpoints, why not SUBSCRIBE to them too?
 
 ## Quick start (NodeJS + Browser focus)
 
