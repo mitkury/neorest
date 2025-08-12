@@ -35,9 +35,10 @@ This document describes the current, implemented architecture of Neorest.
 ### Client (`neorest`)
 
 - **Client** (`packages/neorest/src/Client.ts`)
-  - Constructor: `new Client(url, strategyType = 'websocket', options?)`
+  - Constructor: `new Client(url, strategyType = 'auto', options?)`
   - Methods: `get`, `post`, `delete`, `postAndForget`, `on(route, cb)`, `off(route)`, `isConnected`, `getURL`, `setUrl`
   - Delegates to `ClientConnection`
+  - Default strategy is `auto` which connects via HTTP long‑polling first, then upgrades to WebSocket when available
 
 - **ClientConnection**
   - Extends `ConnectionBase`
@@ -51,6 +52,7 @@ This document describes the current, implemented architecture of Neorest.
   - WebSocket: Uses browser `WebSocket`; forwards messages and lifecycle events
   - HTTP long‑polling: Handshake to obtain `clientId`, `POST` to send, `GET ?poll=true` to receive queued messages
     - Adds auth headers if provided via `setAuthentication`
+  - Auto: Starts over HTTP long‑polling for immediate connectivity, attempts a background WebSocket upgrade, and prefers WS for sending once connected; if WS send fails, falls back to HTTP `POST` transparently. Receives messages from whichever transports are active.
 
 ### Router Core (`@neorest/router-core`)
 
@@ -79,10 +81,11 @@ This document describes the current, implemented architecture of Neorest.
 - **NodeServerAdapter**
   - Creates HTTP/HTTPS server
   - Tries to enable WebSocket if `ws` is installed (dynamic import); handles `upgrade`
+  - Option `disableWebSocket` to force HTTP‑only mode (useful for deployments and tests)
   - HTTP interface:
     - `GET` without `clientId` → returns `{ clientId }` (handshake)
     - `GET ?poll=true&clientId=...` → returns queued messages or 204
-    - `POST` with a serialized `MsgWrapper` → enqueues/dispatches; returns immediate response message if present or 202
+    - `POST` with a serialized `MsgWrapper` → enqueues/dispatches; after a brief wait, returns any queued messages as an array (e.g. immediate response and broadcasts) or 202 when none
     - CORS preflight support
   - Associates each `clientId` with a server `HttpStrategy` (extends `HttpStrategyBase`) and registers connections with the router
 
@@ -92,9 +95,14 @@ This document describes the current, implemented architecture of Neorest.
 
 ### End‑to‑End Flows (from tests)
 
-- HTTP: `Client('http://host', 'http')` ↔ `NodeRouter`
+- HTTP: `Client('http://host', 'http' | 'auto')` ↔ `NodeRouter`
   - `GET /ping` → `"pong"`
   - `POST /echo` → echoes payload
+
+- Auto (HTTP‑first with WS upgrade): `Client('http://host', 'auto')` ↔ `NodeRouter`
+  - Immediately connects via HTTP long‑polling; upgrades to WS if available
+  - Sends prefer WS once connected; if WS send fails, transparently falls back to HTTP POST
+  - Subscriptions and broadcasts delivered over active transports
 
 - WebSocket: `Client('ws://host', 'websocket')` ↔ `NodeRouter`
   - Request/response as above
@@ -132,6 +140,8 @@ await ws.post('/messages', { text: 'hello' });
 ### Notes
 
 - WebSocket support on Node is optional; install `ws` to enable it at runtime.
+- You can force HTTP‑only mode by passing `disableWebSocket: true` to `NodeRouter` options.
 - Client routes disallow `:`; the server internally supports parameterized routes like `/topic/:name` for matching and validation.
+- HTTP `POST` responses may return an array of messages (e.g., immediate response and queued broadcasts). The client HTTP strategy handles both single and array payloads.
 
 

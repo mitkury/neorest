@@ -19,6 +19,10 @@ export interface NodeServerAdapterOptions {
     key: string;
     cert: string;
   };
+  /**
+   * When true, do not setup WebSocket server or upgrade handling.
+   */
+  disableWebSocket?: boolean;
 }
 
 /**
@@ -57,18 +61,22 @@ export class NodeServerAdapter implements ServerAdapter {
       this.server = createHttpServer((req, res) => this.handleHttpRequest(req, res));
     }
 
-    // Try to set up WebSocket server bound to the HTTP server, if 'ws' is available
-    try {
-      const { WebSocketServer } = await import('ws');
-      this.wsServer = new WebSocketServer({ noServer: true });
+    // Try to set up WebSocket server bound to the HTTP server, if 'ws' is available and not disabled
+    if (!this.options.disableWebSocket) {
+      try {
+        const { WebSocketServer } = await import('ws');
+        this.wsServer = new WebSocketServer({ noServer: true });
 
-      this.server.on('upgrade', (request: IncomingMessage, socket, head) => {
-        this.wsServer!.handleUpgrade(request, socket as any, head, async (ws: any) => {
-          await this.handleWebSocketConnection(ws, request);
+        this.server.on('upgrade', (request: IncomingMessage, socket, head) => {
+          this.wsServer!.handleUpgrade(request, socket as any, head, async (ws: any) => {
+            await this.handleWebSocketConnection(ws, request);
+          });
         });
-      });
-    } catch (err) {
-      // 'ws' not installed; skip WebSocket support
+      } catch (err) {
+        // 'ws' not installed; skip WebSocket support
+        this.wsServer = null;
+      }
+    } else {
       this.wsServer = null;
     }
 
@@ -222,14 +230,14 @@ export class NodeServerAdapter implements ServerAdapter {
           // Wait briefly for a response
           await new Promise(resolve => setTimeout(resolve, 50));
           
-          // Return any immediate response
+          // Return any immediate response (and any queued messages, including broadcasts)
           const responseMessages = strategy!.getQueuedMessages();
           if (responseMessages.length > 0) {
             res.writeHead(200, {
               'Content-Type': 'application/json',
               'Access-Control-Allow-Origin': '*'
             });
-            res.end(JSON.stringify(responseMessages[0]));
+            res.end(JSON.stringify(responseMessages));
           } else {
             res.writeHead(202, {
               'Access-Control-Allow-Origin': '*'

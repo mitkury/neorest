@@ -126,8 +126,13 @@ export class HttpStrategy implements ClientStrategy {
         if (contentType && contentType.includes('application/json')) {
           const responseData = await response.json();
           if (responseData && this.messageCallback) {
-            // Server POST returns a single message (or 202 with no body)
-            this.messageCallback(responseData as MsgWrapper);
+            if (Array.isArray(responseData)) {
+              for (const msg of responseData) {
+                this.messageCallback(msg as MsgWrapper);
+              }
+            } else {
+              this.messageCallback(responseData as MsgWrapper);
+            }
           }
         }
       } catch (error) {

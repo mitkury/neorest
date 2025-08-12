@@ -4,6 +4,7 @@ export { Client } from './Client';
 // Export strategies for advanced usage
 export { WebSocketStrategy } from './strategies/WebSocketStrategy';
 export { HttpStrategy } from './strategies/HttpStrategy';
+export { AutoStrategy } from './strategies/AutoStrategy';
 export { createStrategy } from './strategies';
 
 // Export connection class for advanced usage

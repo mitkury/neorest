@@ -76,7 +76,7 @@ export class ClientConnection extends ConnectionBase {
    * @param url - The URL to connect to
    * @param strategyType - The type of strategy to use
    */
-  public async setUrl(url: string, strategyType?: 'websocket' | 'http'): Promise<void> {
+  public async setUrl(url: string, strategyType?: 'websocket' | 'http' | 'auto'): Promise<void> {
     this.url = url;
     
     // Close existing connection
@@ -113,14 +113,14 @@ export class ClientConnection extends ConnectionBase {
    * Get the strategy type
    * @returns The strategy type
    */
-  public getStrategyType(): 'websocket' | 'http' {
+  public getStrategyType(): 'websocket' | 'http' | 'auto' {
     const type = (this.strategy as any).type;
-    if (type === 'websocket' || type === 'http') {
+    if (type === 'websocket' || type === 'http' || type === 'auto') {
       return type;
     }
     
-    // Default to websocket
-    return 'websocket';
+    // Default to auto
+    return 'auto';
   }
 
   /**
