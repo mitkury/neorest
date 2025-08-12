@@ -11,7 +11,7 @@
   "scripts": {
     "clean": "npm run clean --workspaces",
     "build": "npm run build -w @neorest/core && npm run build -w @neorest/router-core && npm run build -w @neorest/router-node && npm run build -w neorest",
-    "pretest": "npm run build",
+    "pretest": "npx tsc -b packages/core/tsconfig.json packages/router-core/tsconfig.json packages/router-node/tsconfig.json packages/neorest/tsconfig.json",
     "test": "npm run test -w @neorest/tests",
     "test:unit": "npm run test",
     "test:e2e": "npm run test -w @neorest/e2e-tests"
