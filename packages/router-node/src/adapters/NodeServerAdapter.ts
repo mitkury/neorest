@@ -23,6 +23,10 @@ export interface NodeServerAdapterOptions {
    * When true, do not setup WebSocket server or upgrade handling.
    */
   disableWebSocket?: boolean;
+  /**
+   * When true, do not expose routes over plain HTTP (/.neorest transport still works).
+   */
+  disableHttpRoutes?: boolean;
 }
 
 /**
@@ -158,13 +162,10 @@ export class NodeServerAdapter implements ServerAdapter {
       res.end('Router not initialized');
       return;
     }
-    
+
     // Parse the URL and query parameters
     const url = new URL(req.url || '/', `http://${req.headers.host}`);
-    const clientId = url.searchParams.get('clientId');
-    const isPoll = url.searchParams.get('poll') === 'true';
-    const reconnectSecret = url.searchParams.get('secret');
-    
+
     // Handle CORS preflight requests
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
@@ -175,92 +176,113 @@ export class NodeServerAdapter implements ServerAdapter {
       res.end();
       return;
     }
-    
-    // If no client ID, generate one and send it back
-    if (!clientId) {
-      const newClientId = randomUUID();
-      res.writeHead(200, {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      });
-      res.end(JSON.stringify({ clientId: newClientId }));
-      return;
-    }
-    
-    // Create or retrieve HTTP strategy for this client
-    let strategy = this.httpConnections.get(clientId);
-    
-    if (!strategy) {
-      console.log(`New HTTP client connection: ${clientId}`);
-      strategy = new HttpStrategy(clientId);
-      this.httpConnections.set(clientId, strategy);
-      this.router.handleNewConnection(strategy, reconnectSecret as ConnectionSecret);
-    }
-    
-    // Handle long polling
-    if (isPoll) {
-      const messages = strategy.getQueuedMessages();
-      if (messages.length > 0) {
+
+    // Transport endpoints are under /.neorest
+    if (url.pathname === '/.neorest') {
+      const clientId = url.searchParams.get('clientId');
+      const isPoll = url.searchParams.get('poll') === 'true';
+      const reconnectSecret = url.searchParams.get('secret');
+
+      // If no client ID, generate one and send it back
+      if (!clientId) {
+        const newClientId = randomUUID();
         res.writeHead(200, {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*'
         });
-        res.end(JSON.stringify(messages));
-      } else {
-        res.writeHead(204, {
-          'Access-Control-Allow-Origin': '*'
-        });
-        res.end();
+        res.end(JSON.stringify({ clientId: newClientId }));
+        return;
       }
-      return;
-    }
-    
-    // Handle message POST
-    if (req.method === 'POST') {
-      let body = '';
-      req.on('data', (chunk: Buffer) => {
-        body += chunk.toString();
-      });
-      
-      req.on('end', async () => {
-        try {
-          const message = JSON.parse(body);
-          strategy!.processMessage(message);
-          
-          // Wait briefly for a response
-          await new Promise(resolve => setTimeout(resolve, 50));
-          
-          // Return any immediate response (and any queued messages, including broadcasts)
-          const responseMessages = strategy!.getQueuedMessages();
-          if (responseMessages.length > 0) {
-            res.writeHead(200, {
-              'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*'
-            });
-            res.end(JSON.stringify(responseMessages));
-          } else {
-            res.writeHead(202, {
-              'Access-Control-Allow-Origin': '*'
-            });
-            res.end();
-          }
-        } catch (error) {
-          console.error('Error processing HTTP message:', error);
-          res.writeHead(400, {
+
+      // Create or retrieve HTTP strategy for this client
+      let strategy = this.httpConnections.get(clientId);
+      if (!strategy) {
+        console.log(`New HTTP client connection: ${clientId}`);
+        strategy = new HttpStrategy(clientId);
+        this.httpConnections.set(clientId, strategy);
+        this.router.handleNewConnection(strategy, reconnectSecret as ConnectionSecret);
+      }
+
+      // Handle long polling
+      if (isPoll) {
+        const messages = strategy.getQueuedMessages();
+        if (messages.length > 0) {
+          res.writeHead(200, {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*'
           });
-          res.end(JSON.stringify({ error: 'Invalid message format' }));
+          res.end(JSON.stringify(messages));
+        } else {
+          res.writeHead(204, { 'Access-Control-Allow-Origin': '*' });
+          res.end();
         }
-      });
+        return;
+      }
+
+      // Handle message POST
+      if (req.method === 'POST') {
+        let body = '';
+        req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+        req.on('end', async () => {
+          try {
+            const message = JSON.parse(body);
+            strategy!.processMessage(message);
+            await new Promise(resolve => setTimeout(resolve, 50));
+            const responseMessages = strategy!.getQueuedMessages();
+            if (responseMessages.length > 0) {
+              res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify(responseMessages));
+            } else {
+              res.writeHead(202, { 'Access-Control-Allow-Origin': '*' });
+              res.end();
+            }
+          } catch (error) {
+            console.error('Error processing HTTP message:', error);
+            res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            res.end(JSON.stringify({ error: 'Invalid message format' }));
+          }
+        });
+        return;
+      }
+
+      // Method not allowed for transport endpoint
+      res.writeHead(405, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ error: 'Method not allowed' }));
       return;
     }
-    
-    // Default response
-    res.writeHead(200, {
-      'Content-Type': 'text/plain',
-      'Access-Control-Allow-Origin': '*'
+
+    // Regular HTTP route dispatch
+    const method = (req.method || 'GET').toUpperCase() as 'GET' | 'POST' | 'DELETE';
+
+    // Parse body if needed
+    const collectBody = async () => new Promise<string>((resolve) => {
+      if (req.method === 'POST' || req.method === 'DELETE') {
+        let body = '';
+        req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+        req.on('end', () => resolve(body));
+      } else {
+        resolve('');
+      }
     });
-    res.end('Neorest server');
+
+    const rawBody = await collectBody();
+
+    let data: any = null;
+    if (method === 'GET') {
+      // Use query params as data for GET
+      data = Object.fromEntries(url.searchParams.entries());
+    } else if (rawBody) {
+      try {
+        data = JSON.parse(rawBody);
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+        return;
+      }
+    }
+
+    const { status, body, contentType } = await this.router.executeHttpRoute(method, url.pathname, data, req.headers as any);
+    res.writeHead(status, { 'Content-Type': contentType || 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify(body));
   }
 }
