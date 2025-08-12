@@ -1,10 +1,7 @@
-import express from 'express';
-import cors from 'cors';
-import { WebSocketServer, WebSocket } from 'ws';
-import { createServer } from 'http';
+import { NodeRouter } from '@neorest/router-node';
 import { randomUUID } from 'crypto';
+import type { ServerConnection } from '@neorest/router-core';
 
-// Data models
 interface User {
   id: string;
   name: string;
@@ -30,14 +27,10 @@ interface Room {
   map: { width: number; height: number };
 }
 
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-const httpServer = createServer(app);
-const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+const router = new NodeRouter({ hostname: '0.0.0.0', port: Number(process.env.PORT || 8787) });
 
 const rooms: Map<string, Room> = new Map();
+const connPresence: Map<string, { roomId: string; userId: string }> = new Map();
 
 function getRandomColor(): string {
   const colors = ['#ff6b6b', '#ff922b', '#fcc419', '#51cf66', '#339af0', '#845ef7', '#f06595'];
@@ -45,143 +38,124 @@ function getRandomColor(): string {
 }
 
 const emojiPalette = ['😀','😎','🦊','🐼','🐸','🐯','🐵','🐰','🐹','🦄','🐙','🐳','🐝','🍀','🌈','⭐'];
-function getRandomEmoji(): string {
-  return emojiPalette[Math.floor(Math.random() * emojiPalette.length)];
-}
+function getRandomEmoji(): string { return emojiPalette[Math.floor(Math.random() * emojiPalette.length)]; }
 
 function ensureRoom(roomId: string, name?: string): Room {
   let room = rooms.get(roomId);
   if (!room) {
-    room = {
-      id: roomId,
-      name: name ?? `Room ${roomId.slice(0, 4)}`,
-      createdAt: Date.now(),
-      users: new Map(),
-      chat: [],
-      map: { width: 20, height: 12 }
-    };
+    room = { id: roomId, name: name ?? `Room ${roomId.slice(0,4)}`, createdAt: Date.now(), users: new Map(), chat: [], map: { width: 20, height: 12 } };
     rooms.set(roomId, room);
   }
   return room;
 }
 
-// REST endpoints
-app.get('/api/rooms', (_req, res) => {
-  const list = Array.from(rooms.values()).map(r => ({ id: r.id, name: r.name, numUsers: r.users.size }));
-  res.json(list);
-});
-
-app.post('/api/rooms', (req, res) => {
-  const id = randomUUID();
-  const name = typeof req.body?.name === 'string' && req.body.name.trim() ? req.body.name.trim() : undefined;
-  const room = ensureRoom(id, name);
-  res.json({ id: room.id });
-});
-
-app.get('/api/rooms/:id', (req, res) => {
-  const room = rooms.get(req.params.id);
-  if (!room) return res.status(404).json({ error: 'Room not found' });
-  res.json({ id: room.id, name: room.name, users: Object.fromEntries(room.users), chat: room.chat, map: room.map });
-});
-
-// WebSocket handling
-interface ClientInfo {
-  ws: WebSocket;
-  userId?: string;
-  roomId?: string;
+function serializeRoom(room: Room) {
+  return { id: room.id, name: room.name, users: Object.fromEntries(room.users), chat: room.chat, map: room.map };
 }
 
-const clients = new Set<ClientInfo>();
+function clamp(value: number, min: number, max: number) { return Math.max(min, Math.min(max, value)); }
 
-function broadcastToRoom(roomId: string, payload: any) {
-  const text = JSON.stringify(payload);
-  for (const client of clients) {
-    if (client.roomId === roomId && client.ws.readyState === WebSocket.OPEN) {
-      client.ws.send(text);
+// HTTP-like API
+router.onGet('/api/rooms', async (ctx) => {
+  ctx.response = Array.from(rooms.values()).map(r => ({ id: r.id, name: r.name, numUsers: r.users.size }));
+});
+
+router.onPost('/api/rooms', async (ctx) => {
+  const id = randomUUID();
+  const name = typeof ctx.data?.name === 'string' && ctx.data.name.trim() ? ctx.data.name.trim() : undefined;
+  const room = ensureRoom(id, name);
+  ctx.response = { id: room.id };
+});
+
+router.onGet('/api/rooms/:id', async (ctx) => {
+  const room = rooms.get(ctx.params.id);
+  if (!room) {
+    ctx.statusCode = 404; ctx.error = 'Room not found'; return;
+  }
+  ctx.response = serializeRoom(room);
+});
+
+// Domain actions over neorest
+router.onPost('/api/rooms/:id/join', async (ctx) => {
+  const room = ensureRoom(ctx.params.id);
+  const conn = ctx.sender as ServerConnection;
+
+  // Cleanup previous presence if any
+  const prev = connPresence.get(conn.getSecret());
+  if (prev) {
+    const prevRoom = rooms.get(prev.roomId);
+    if (prevRoom) {
+      prevRoom.users.delete(prev.userId);
+      router.broadcastUpdate(`/rooms/${prev.roomId}/presence`, { users: Object.fromEntries(prevRoom.users) });
     }
   }
-}
 
-wss.on('connection', (ws) => {
-  const info: ClientInfo = { ws };
-  clients.add(info);
+  const userId = randomUUID();
+  const user: User = {
+    id: userId,
+    name: typeof ctx.data?.name === 'string' && ctx.data.name.trim() ? ctx.data.name.trim() : `User ${userId.slice(0,4)}`,
+    color: getRandomColor(),
+    emoji: typeof ctx.data?.emoji === 'string' && ctx.data.emoji.trim() ? ctx.data.emoji.trim() : getRandomEmoji(),
+    x: Math.floor(room.map.width / 2),
+    y: Math.floor(room.map.height / 2),
+  };
+  room.users.set(userId, user);
+  connPresence.set(conn.getSecret(), { roomId: room.id, userId });
 
-  ws.on('message', (raw) => {
-    try {
-      const msg = JSON.parse(raw.toString());
-      const type: string = msg.type;
-      if (type === 'join') {
-        const roomId: string = msg.roomId;
-        const name: string | undefined = msg.name;
-        const emoji: string | undefined = msg.emoji;
-        const room = ensureRoom(roomId);
-        const userId = randomUUID();
-        const user: User = {
-          id: userId,
-          name: name ?? `User ${userId.slice(0, 4)}`,
-          color: getRandomColor(),
-          emoji: emoji ?? getRandomEmoji(),
-          x: Math.floor(room.map.width / 2),
-          y: Math.floor(room.map.height / 2)
-        };
-        room.users.set(userId, user);
-        info.userId = userId;
-        info.roomId = roomId;
-        // Send initial state to this client
-        ws.send(JSON.stringify({ type: 'joined', roomId, userId, state: serializeRoom(room) }));
-        // Broadcast presence update
-        broadcastToRoom(roomId, { type: 'presence', roomId, users: Object.fromEntries(room.users) });
-      } else if (type === 'move') {
-        const { roomId, dx, dy } = msg as { roomId: string; dx: number; dy: number };
-        if (!info.userId || info.roomId !== roomId) return;
-        const room = rooms.get(roomId);
-        if (!room) return;
-        const user = room.users.get(info.userId);
-        if (!user) return;
-        user.x = clamp(user.x + Math.trunc(dx), 0, room.map.width - 1);
-        user.y = clamp(user.y + Math.trunc(dy), 0, room.map.height - 1);
-        broadcastToRoom(roomId, { type: 'moved', roomId, user });
-      } else if (type === 'chat') {
-        const { roomId, text } = msg as { roomId: string; text: string };
-        if (!info.userId || info.roomId !== roomId) return;
-        const room = rooms.get(roomId);
-        if (!room) return;
-        const message: ChatMessage = { id: randomUUID(), userId: info.userId, text: String(text ?? '').slice(0, 500), ts: Date.now() };
-        room.chat.push(message);
-        broadcastToRoom(roomId, { type: 'chat', roomId, message });
+  // Attach cleanup on connection close once
+  const originalOnClose = (conn as any).onClose;
+  (conn as any).onClose = () => {
+    const p = connPresence.get(conn.getSecret());
+    if (p) {
+      const r = rooms.get(p.roomId);
+      if (r) {
+        r.users.delete(p.userId);
+        router.broadcastUpdate(`/rooms/${p.roomId}/presence`, { users: Object.fromEntries(r.users) });
       }
-    } catch (err) {
-      // ignore malformed
+      connPresence.delete(conn.getSecret());
     }
-  });
+    if (typeof originalOnClose === 'function') originalOnClose();
+  };
 
-  ws.on('close', () => {
-    if (info.roomId && info.userId) {
-      const room = rooms.get(info.roomId);
-      if (room) {
-        room.users.delete(info.userId);
-        broadcastToRoom(info.roomId, { type: 'presence', roomId: info.roomId, users: Object.fromEntries(room.users) });
-      }
-    }
-    clients.delete(info);
-  });
+  ctx.response = { userId, state: serializeRoom(room) };
+  router.broadcastUpdate(`/rooms/${room.id}/presence`, { users: Object.fromEntries(room.users) }, conn);
 });
 
-function serializeRoom(room: Room) {
-  return {
-    id: room.id,
-    name: room.name,
-    users: Object.fromEntries(room.users),
-    chat: room.chat,
-    map: room.map
-  };
-}
+router.onPost('/api/rooms/:id/move', async (ctx) => {
+  const conn = ctx.sender as ServerConnection;
+  const presence = connPresence.get(conn.getSecret());
+  if (!presence || presence.roomId !== ctx.params.id) { ctx.statusCode = 403; ctx.error = 'Not in room'; return; }
+  const room = rooms.get(ctx.params.id);
+  if (!room) { ctx.statusCode = 404; ctx.error = 'Room not found'; return; }
+  const user = room.users.get(presence.userId);
+  if (!user) { ctx.statusCode = 404; ctx.error = 'User not found'; return; }
+  const dx = Number(ctx.data?.dx ?? 0) | 0;
+  const dy = Number(ctx.data?.dy ?? 0) | 0;
+  user.x = clamp(user.x + Math.trunc(dx), 0, room.map.width - 1);
+  user.y = clamp(user.y + Math.trunc(dy), 0, room.map.height - 1);
+  router.broadcastUpdate(`/rooms/${room.id}/moved`, { user }, conn);
+  ctx.response = { ok: true };
+});
 
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
-}
+router.onPost('/api/rooms/:id/chat', async (ctx) => {
+  const conn = ctx.sender as ServerConnection;
+  const presence = connPresence.get(conn.getSecret());
+  if (!presence || presence.roomId !== ctx.params.id) { ctx.statusCode = 403; ctx.error = 'Not in room'; return; }
+  const room = rooms.get(ctx.params.id);
+  if (!room) { ctx.statusCode = 404; ctx.error = 'Room not found'; return; }
+  const text = String(ctx.data?.text ?? '').slice(0, 500);
+  if (!text) { ctx.statusCode = 400; ctx.error = 'Empty message'; return; }
+  const message: ChatMessage = { id: randomUUID(), userId: presence.userId, text, ts: Date.now() };
+  room.chat.push(message);
+  router.broadcastPost(`/rooms/${room.id}/chat`, { message }, conn);
+  ctx.response = { ok: true };
+});
 
-const PORT = Number(process.env.PORT || 8787);
-httpServer.listen(PORT, () => {
-  console.log(`Rooms API listening on http://localhost:${PORT}`);
+// Outgoing channels (validate subscriptions). For demo, allow all.
+router.onValidateBroadcast('/rooms/:id/presence', () => true);
+router.onValidateBroadcast('/rooms/:id/moved', () => true);
+router.onValidateBroadcast('/rooms/:id/chat', () => true);
+
+router.listen().then(() => {
+  console.log('Rooms API (neorest) listening on http://localhost:' + (process.env.PORT || 8787));
 });

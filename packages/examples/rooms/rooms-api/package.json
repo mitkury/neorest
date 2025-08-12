@@ -11,10 +11,7 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^4.19.2",
-    "uuid": "^9.0.1",
-    "ws": "^8.18.0"
+    "@neorest/router-node": "^0.1.0"
   },
   "devDependencies": {
     "tsup": "^8.4.0",

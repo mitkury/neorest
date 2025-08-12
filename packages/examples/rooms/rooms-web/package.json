@@ -8,6 +8,9 @@
     "build": "vite build",
     "preview": "vite preview --port 5174"
   },
+  "dependencies": {
+    "neorest": "^0.1.0"
+  },
   "devDependencies": {
     "@sveltejs/adapter-auto": "^3.2.4",
     "@sveltejs/kit": "^2.5.10",

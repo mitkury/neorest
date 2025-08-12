@@ -1,16 +1,16 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
   import { page } from '$app/stores';
+  import { Client } from 'neorest';
 
   type User = { id: string; name: string; color: string; emoji?: string; x: number; y: number };
   type ChatMessage = { id: string; userId: string; text: string; ts: number };
   type MapSize = { width: number; height: number };
 
   const apiBase = (import.meta.env.VITE_API_BASE as string) || 'http://localhost:8787';
-  const wsBase = (import.meta.env.VITE_WS_BASE as string) || 'ws://localhost:8787/ws';
 
   let roomId: string;
-  let ws: WebSocket | null = null;
+  let client: Client;
   let userId: string | null = null;
 
   let users: Record<string, User> = {};
@@ -23,53 +23,22 @@
 
   $: roomId = $page.params.id;
 
-  function connect() {
-    ws = new WebSocket(wsBase);
-    ws.onopen = () => {
-      ws?.send(JSON.stringify({ type: 'join', roomId }));
-    };
-    ws.onmessage = (ev) => {
-      const msg = JSON.parse(ev.data);
-      if (msg.type === 'joined') {
-        userId = msg.userId;
-        const state = msg.state as { users: Record<string, User>; chat: ChatMessage[]; map: MapSize };
-        users = state.users || {};
-        chat = state.chat || [];
-        map = state.map || map;
-        draw();
-      } else if (msg.type === 'presence') {
-        users = msg.users || {};
-        draw();
-      } else if (msg.type === 'moved') {
-        const u: User = msg.user;
-        users[u.id] = u;
-        draw();
-      } else if (msg.type === 'chat') {
-        chat = [...chat, msg.message];
-      }
-    };
-    ws.onclose = () => {
-      ws = null;
-    };
-  }
-
-  function sendMove(dx: number, dy: number) {
-    if (!ws) return;
-    ws.send(JSON.stringify({ type: 'move', roomId, dx, dy }));
-  }
-
   function keydown(e: KeyboardEvent) {
     if ((e.target as HTMLElement)?.tagName === 'INPUT' || (e.target as HTMLElement)?.tagName === 'TEXTAREA') return;
-    if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') sendMove(0, -1);
-    if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') sendMove(0, 1);
-    if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') sendMove(-1, 0);
-    if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') sendMove(1, 0);
+    if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') move(0, -1);
+    if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') move(0, 1);
+    if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') move(-1, 0);
+    if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') move(1, 0);
   }
 
-  function sendChat() {
+  async function move(dx: number, dy: number) {
+    await client.post(`/api/rooms/${roomId}/move`, { dx, dy });
+  }
+
+  async function sendChat() {
     const text = chatText.trim();
-    if (!text || !ws) return;
-    ws.send(JSON.stringify({ type: 'chat', roomId, text }));
+    if (!text) return;
+    await client.post(`/api/rooms/${roomId}/chat`, { text });
     chatText = '';
   }
 
@@ -103,7 +72,6 @@
       const u = users[uid];
       const cx = u.x * tileSize + tileSize / 2;
       const cy = u.y * tileSize + tileSize / 2;
-      // Circle avatar
       ctx.beginPath();
       ctx.fillStyle = u.color || '#111827';
       ctx.arc(cx, cy, tileSize * 0.35, 0, Math.PI * 2);
@@ -126,8 +94,31 @@
   }
 
   let unsub: () => void;
-  onMount(() => {
-    connect();
+  onMount(async () => {
+    client = new Client(apiBase, 'auto');
+
+    // Fetch room state and join to get assigned userId
+    const joinRes = await client.post<{ userId: string; state: { users: Record<string, User>; chat: ChatMessage[]; map: MapSize } }>(`/api/rooms/${roomId}/join`, {});
+    const data: any = joinRes.data;
+    userId = data?.userId || null;
+    users = data?.state?.users || {};
+    chat = data?.state?.chat || [];
+    map = data?.state?.map || map;
+    draw();
+
+    await client.on(`/rooms/${roomId}/presence`, (ev: any) => {
+      users = (ev.data as any)?.users || users;
+      draw();
+    });
+    await client.on(`/rooms/${roomId}/moved`, (ev: any) => {
+      const u: User = (ev.data as any)?.user;
+      if (u) { users[u.id] = u; draw(); }
+    });
+    await client.on(`/rooms/${roomId}/chat`, (ev: any) => {
+      const message: ChatMessage = (ev.data as any)?.message;
+      if (message) chat = [...chat, message];
+    });
+
     const handler = (e: KeyboardEvent) => keydown(e);
     window.addEventListener('keydown', handler);
     unsub = () => window.removeEventListener('keydown', handler);
@@ -135,7 +126,7 @@
 
   onDestroy(() => {
     unsub?.();
-    ws?.close();
+    client?.close();
   });
 </script>
 

@@ -1,28 +1,29 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { Client } from 'neorest';
 
   type RoomBrief = { id: string; name: string; numUsers: number };
   let rooms: RoomBrief[] = [];
   let name = '';
+  let client: Client;
   const apiBase = (import.meta.env.VITE_API_BASE as string) || 'http://localhost:8787';
 
   async function loadRooms() {
-    const res = await fetch(`${apiBase}/api/rooms`);
-    rooms = await res.json();
+    const res = await client.get<RoomBrief[]>('/api/rooms');
+    rooms = (res.data as any) || [];
   }
 
   async function createRoom() {
-    const res = await fetch(`${apiBase}/api/rooms`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name || undefined })
-    });
-    const data = await res.json();
-    goto(`/rooms/${data.id}`);
+    const res = await client.post<{ id: string }>('/api/rooms', { name: name || undefined });
+    const id = (res.data as any)?.id;
+    if (id) goto(`/rooms/${id}`);
   }
 
-  onMount(loadRooms);
+  onMount(async () => {
+    client = new Client(apiBase, 'auto');
+    await loadRooms();
+  });
 </script>
 
 <div style="max-width: 720px; margin: 24px auto; padding: 0 16px; display:flex; flex-direction:column; gap:16px;">
