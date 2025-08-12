@@ -9,6 +9,7 @@ import {
   OFF_ROUTE,
   new_MsgResponseOK,
   new_MsgGenericError,
+  new_MsgResponseWithCode,
   RouteResponse,
   MsgSubscribeToRoute,
   MsgUnsubscribeFromRoute,
@@ -93,9 +94,17 @@ export class ServerConnection extends ConnectionBase {
         return new_MsgResponseOK(msgId);
       } else {
         if (!response.error) {
-          return new_MsgResponseOK(msgId, response.data);
+          const status = (response as any).status || 200;
+          if (status === 200) {
+            return new_MsgResponseOK(msgId, response.data);
+          }
+          return new_MsgResponseWithCode(msgId, status, response.data as any as string);
         } else {
-          return new_MsgGenericError(msgId, response.error);
+          const status = (response as any).status || 500;
+          if (status === 500) {
+            return new_MsgGenericError(msgId, response.error);
+          }
+          return new_MsgResponseWithCode(msgId, status, response.error);
         }
       }
     });

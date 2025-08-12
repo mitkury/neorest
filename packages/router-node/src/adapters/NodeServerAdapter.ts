@@ -170,7 +170,7 @@ export class NodeServerAdapter implements ServerAdapter {
       res.writeHead(204, {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, X-Client-ID',
+        'Access-Control-Allow-Headers': 'Content-Type, X-Client-ID, Authorization',
       });
       res.end();
       return;

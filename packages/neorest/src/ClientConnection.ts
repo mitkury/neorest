@@ -30,6 +30,7 @@ export class ClientConnection extends ConnectionBase {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectOptions: ReconnectOptions;
   private url?: string;
+  private defaultRequestHeaders: Record<string, string> = {};
   
   /**
    * Event called when client is connected
@@ -151,12 +152,13 @@ export class ClientConnection extends ConnectionBase {
     }
 
     // Create route message
+    const mergedHeaders = { ...this.defaultRequestHeaders, ...(headers || {}) };
     const msg = {
       type: ROUTE_MESSAGE,
       verb,
       route,
       data: payload !== undefined ? payload : "",
-      headers
+      headers: Object.keys(mergedHeaders).length ? mergedHeaders : undefined
     };
     
     // Send message and register callback
@@ -180,12 +182,13 @@ export class ClientConnection extends ConnectionBase {
     this.validateRoute(route);
     
     // Create and send message
+    const mergedHeaders = { ...this.defaultRequestHeaders, ...(headers || {}) };
     const msg = {
       type: ROUTE_MESSAGE,
       verb,
       route,
       data: payload,
-      headers
+      headers: Object.keys(mergedHeaders).length ? mergedHeaders : undefined
     };
     
     this.postAndForget(msg);
@@ -375,5 +378,9 @@ export class ClientConnection extends ConnectionBase {
         }
       });
     }
+  }
+
+  public setDefaultHeaders(headers: Record<string, string>): void {
+    this.defaultRequestHeaders = { ...headers };
   }
 }

@@ -285,10 +285,10 @@ export abstract class ConnectionBase {
 
     let response: RouteResponse;
 
-    if (msg.status === 200) {
-      response = new_RouteResponse(msg.data);
+    if (msg.status >= 200 && msg.status < 300) {
+      response = { data: msg.data, status: msg.status } as RouteResponse;
     } else {
-      response = new_RouteResponseError(msg.data as string);
+      response = { error: msg.data as string, data: '', status: msg.status } as RouteResponse;
     }
 
     const callback = this.callbacks.get(msgId);

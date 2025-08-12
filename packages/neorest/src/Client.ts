@@ -104,6 +104,20 @@ export class Client {
   }
 
   /**
+   * Set the Authorization Bearer token to be sent on all requests
+   */
+  public setAuthToken(token: string): void {
+    this.conn.setDefaultHeaders({ Authorization: `Bearer ${token}` });
+  }
+
+  /**
+   * Clear any default Authorization token
+   */
+  public clearAuthToken(): void {
+    this.conn.setDefaultHeaders({});
+  }
+
+  /**
    * Send a request to a route
    * @param route - The route to send to
    * @param verb - The HTTP verb to use
