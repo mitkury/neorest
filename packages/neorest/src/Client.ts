@@ -20,7 +20,7 @@ export class Client {
    * @param strategyType - The type of strategy to use
    * @param options - Options for the connection
    */
-  constructor(url: string, strategyType: 'websocket' | 'http' = 'websocket', options?: ConnectionOptions) {
+  constructor(url: string, strategyType: 'websocket' | 'http' | 'auto' = 'auto', options?: ConnectionOptions) {
     if (!url) {
       throw new Error("URL is required to create a client connection");
     }
@@ -51,7 +51,7 @@ export class Client {
    * @param strategyType - The type of strategy to use
    * @returns A promise that resolves when the connection is established
    */
-  public async setUrl(url: string, strategyType?: 'websocket' | 'http'): Promise<void> {
+  public async setUrl(url: string, strategyType?: 'websocket' | 'http' | 'auto'): Promise<void> {
     return this.conn.setUrl(url, strategyType);
   }
 
