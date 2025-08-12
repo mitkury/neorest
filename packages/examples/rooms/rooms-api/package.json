@@ -13,6 +13,11 @@
   "dependencies": {
     "@neorest/router-node": "^0.1.0"
   },
+  "overrides": {
+    "@neorest/core": "file:../../../core",
+    "@neorest/router-core": "file:../../../router-core",
+    "@neorest/router-node": "file:../../../router-node"
+  },
   "devDependencies": {
     "tsup": "^8.4.0",
     "typescript": "^5.5.4",

@@ -11,6 +11,10 @@
   "dependencies": {
     "neorest": "^0.1.0"
   },
+  "overrides": {
+    "neorest": "file:../../../neorest",
+    "@neorest/core": "file:../../../core"
+  },
   "devDependencies": {
     "@sveltejs/adapter-auto": "^3.2.4",
     "@sveltejs/kit": "^2.5.10",

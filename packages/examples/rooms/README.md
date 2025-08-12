@@ -1,52 +1,43 @@
-## Rooms Example (SvelteKit + Node.js WS)
+## Rooms Example (SvelteKit + neorest)
 
-Goal: A minimal multi-room world where users can:
+A minimal multi-room world where users can:
 - View a list of rooms
 - Create a new room
-- Enter a room to see a top-down map with other users as simple avatars (emoji or colored shapes)
+- Enter a room to see a top-down grid with avatars (emoji + colored circle)
 - Move with arrow keys or WASD
-- Chat in a room-level chat area at the bottom of the page
-- Sync state in real time across all connected clients
+- Chat at the bottom of the page
+- Sync state in real time (neorest subscriptions)
 
-### Architecture
-- `rooms-web`: SvelteKit frontend app
-- `rooms-api`: Node.js REST + WebSocket server
-- Data is stored in-memory on the API server for simplicity (not persisted)
+### Run locally (one command)
+From this folder:
 
-### Data Model (in-memory)
-- Room: `{ id: string, name: string, createdAt: number, users: Map<userId, User>, chat: ChatMessage[], map: { width: number, height: number } }`
-- User: `{ id: string, name: string, color: string, emoji?: string, x: number, y: number }`
-- ChatMessage: `{ id: string, userId: string, text: string, ts: number }`
+```bash
+cd packages/examples/rooms
+npm install
+npm run dev
+```
 
-### REST Endpoints (HTTP)
-- `GET /api/rooms` -> `[{ id, name, numUsers }]`
-- `POST /api/rooms` body: `{ name?: string }` -> `{ id }`
-- `GET /api/rooms/:id` -> `{ id, name, users, chat, map }`
+This starts both:
+- API: neorest `@neorest/router-node` on http://localhost:8787
+- Web: SvelteKit dev server on http://localhost:5173
 
-### WebSocket Events (WS `/ws`)
-Client -> Server:
-- `join`: `{ type: "join", roomId: string, name?: string, emoji?: string }`
-- `move`: `{ type: "move", roomId: string, dx: number, dy: number }`
-- `chat`: `{ type: "chat", roomId: string, text: string }`
+Open the web app, create a room, open it in two tabs, move around and chat.
 
-Server -> Client:
-- `joined`: `{ type: "joined", roomId, userId, state }` // initial full state
-- `presence`: `{ type: "presence", roomId, users }` // users map snapshot
-- `moved`: `{ type: "moved", roomId, user: User }`
-- `chat`: `{ type: "chat", roomId, message: ChatMessage }`
-- `room`: `{ type: "room", roomId, state }` // full state broadcast (e.g., on join/leave)
-
-### Movement
-- Discrete grid movement: 1 unit per key press (WASD/Arrows)
-- Server clamps position to map bounds: `0 <= x < width`, `0 <= y < height`
-
-### UX
-- Home (`/`): list rooms, create room form
-- Room (`/rooms/[id]`):
-  - Canvas showing map and user avatars
-  - Chat history and input at bottom
-  - Local player highlighted
+### Structure
+- `rooms-api`: neorest server (NodeRouter). Routes:
+  - `GET /api/rooms` — list rooms
+  - `POST /api/rooms` — create room
+  - `GET /api/rooms/:id` — room state
+  - `POST /api/rooms/:id/join` — join room (assigns userId and returns state)
+  - `POST /api/rooms/:id/move` — move current user
+  - `POST /api/rooms/:id/chat` — send chat message
+- Outgoing channels (subscribe from client):
+  - `/rooms/:id/presence` — snapshot of users on join/leave
+  - `/rooms/:id/moved` — single user moved
+  - `/rooms/:id/chat` — new chat messages
+- `rooms-web`: SvelteKit app using `neorest` client (`auto` strategy), calling the routes above and subscribing to channels.
 
 ### Notes
-- Dev-only example; no auth. User is anonymous with generated color/emoji if not provided.
-- Simple conflict model: server is source of truth; clients render snapshots from server events.
+- No auth; users are anonymous. Server assigns color and emoji.
+- Server keeps everything in-memory.
+- The example uses a single neorest router server for both HTTP-like routes and real-time subscriptions.
