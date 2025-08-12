@@ -252,6 +252,11 @@ export class NodeServerAdapter implements ServerAdapter {
     }
 
     // Regular HTTP route dispatch
+    if (this.options.disableHttpRoutes) {
+      res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ error: 'Not found' }));
+      return;
+    }
     const method = (req.method || 'GET').toUpperCase() as 'GET' | 'POST' | 'DELETE';
 
     // Parse body if needed
