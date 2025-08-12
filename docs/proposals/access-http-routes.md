@@ -110,10 +110,12 @@ HTTP:
 - Query‑param switch (e.g., `?neorest=true`): harder to reason about, leaks concern into user URLs.
 - Mount under `/api` or configurable prefix: adds setup burden; we want zero‑config.
 
-## Open questions
-- Should plain HTTP always return JSON, even for string responses? Simpler to implement; browser displays strings fine as JSON.
-- Do we want optional per‑route HTTP middleware hooks (auth, etc.) at this layer, or recommend custom adapters when needed?
-- Do we need an opt‑out flag (e.g., `disableHttpRoutes`) for rare deployments?
+## Behavior and decisions
+- Response format: default `application/json`. String/primitive responses are JSON-serialized by default. We can add a future escape hatch to override.
+- Middleware: existing router middleware (e.g., `withAuth`) works unchanged; HTTP routes use the same `RequestContext`.
+- Auth: prefer `Authorization: Bearer <token>` (or custom headers). All request headers are passed through to `ctx.headers` for both plain HTTP routes and `/.neorest` transport.
+- HTTP routes vs subscriptions: serve GET/POST over regular HTTP URLs; subscriptions/events use the transport (WebSocket preferred; HTTP long‑polling at `/.neorest` as fallback). No subscriptions over plain HTTP routes.
+- Opt‑out: add `disableHttpRoutes?: boolean` on `NodeRouter`/adapter; default is enabled.
 
 ## Implementation plan
 1. `@neorest/router-core`: add `executeHttpRoute` and synthetic sender utility.
