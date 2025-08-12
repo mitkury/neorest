@@ -9,7 +9,7 @@ We want a simple, zero‑config way for HTTP‑first servers (current Node setup
 - Zero‑config: enabled by default for HTTP‑capable servers (Node, later Deno).
 - No ambiguity between protocol transport and regular HTTP routes.
 - Consistent status codes and bodies for HTTP.
-- Backwards compatible for existing Neorest clients using HTTP long‑polling.
+- Keep it simple and default-on; we can iterate rapidly since Neorest is still WIP.
 - Minimal surface change and straightforward to implement.
 
 ## Non‑Goals
@@ -48,7 +48,7 @@ This keeps concerns separate and avoids content‑type heuristics or collisions.
   - `GET /.neorest?poll=true&clientId=...` → returns queued messages or 204.
   - `POST /.neorest?clientId=...` → send `MsgWrapper`; returns array of messages or 202.
 - Node adapter will first check for the `/.neorest` prefix. If present, handle as transport; otherwise, attempt HTTP route dispatch as above.
-- Backwards compatibility: keep current root‑based transport paths working for one deprecation cycle, but prefer `/.neorest` when both are possible. The client will try the new path first then fall back.
+
 
 ## Router API changes
 Add a new method to `@neorest/router-core`:
@@ -86,8 +86,8 @@ We will start with the synthetic sender approach to avoid API churn.
   4. If no route matched, return 404 `{ error: 'Not found' }`.
 - Enabled by default. No user code changes required.
 
-## Client compatibility
-- Update HTTP strategy to prefer `GET /.neorest` for handshake/poll/send. If 404, fall back to the legacy root behavior for one version.
+## Client changes
+- Update HTTP strategy to use `/.neorest` for handshake/poll/send. Remove legacy root paths entirely.
 - WebSocket remains unchanged.
 
 ## Examples
@@ -117,11 +117,10 @@ HTTP:
 
 ## Implementation plan
 1. `@neorest/router-core`: add `executeHttpRoute` and synthetic sender utility.
-2. `@neorest/router-node`: move transport to `/.neorest`; implement HTTP route dispatch; keep legacy root transport for one version with deprecation log.
-3. `neorest` client: prefer `/.neorest`, fall back to root.
+2. `@neorest/router-node`: move transport to `/.neorest`; implement HTTP route dispatch; remove legacy root transport paths.
+3. `neorest` client: switch to `/.neorest` endpoints.
 4. Tests: add unit tests for plain HTTP GET/POST/DELETE, plus transport at `/.neorest`.
 5. Docs: update architecture to reflect HTTP routing and transport path.
 
 ## Risks
-- Minor breaking change for HTTP clients if we moved transport paths without fallback. We mitigate by supporting both during a deprecation window and by updating the client to prefer the new path automatically.
 - Broadcast "exclude sender" semantics differ for HTTP‑originating requests. We accept this as a reasonable default for now.
