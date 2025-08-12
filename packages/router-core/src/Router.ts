@@ -70,6 +70,7 @@ interface InRouteLayer {
   regexp: RegExp;
   match: MatchFunction;
   keys: string[];
+  specificity: number;
   verbs: Array<{
     verb: RouteVerb;
     handler: (ctx: RequestContext) => void | Promise<void>;
@@ -85,6 +86,7 @@ interface OutRouteLayer {
   regexp: RegExp;
   match: MatchFunction;
   keys: string[];
+  specificity: number;
   listeners: Array<{
     conn: ConnectionSecret;
     params: string[];
@@ -382,6 +384,23 @@ export class Router {
     };
   }
 
+  private computeSpecificityScore(route: string, keys: string[]): number {
+    const segments = route.split('/').filter(Boolean);
+    let staticSegments = 0;
+    let wildcardSegments = 0;
+    for (const seg of segments) {
+      if (seg.includes('*')) {
+        wildcardSegments += 1;
+      } else if (!seg.startsWith(':')) {
+        staticSegments += 1;
+      }
+    }
+    const paramSegments = keys.length;
+    const lengthScore = Math.min(route.length, 999);
+    // Higher is more specific.
+    return staticSegments * 10000 - paramSegments * 100 - wildcardSegments * 1000 + lengthScore;
+  }
+
   /**
    * Register an incoming route
    * @param route - The route pattern
@@ -406,16 +425,20 @@ export class Router {
     }
 
     if (!targetRoute) {
+      const keyNames = keys.map((k) => String(k.name));
       targetRoute = {
         id: this.nextRouteSubID++,
         route,
         regexp,
         match: match(regexp, { decode: decodeURIComponent }),
-        keys: keys.map((k) => String(k.name)),
+        keys: keyNames,
+        specificity: this.computeSpecificityScore(route, keyNames),
         verbs: [],
       };
 
       this.inRoutes.push(targetRoute);
+      // Keep routes ordered by specificity (most specific first)
+      this.inRoutes.sort((a, b) => b.specificity - a.specificity);
     }
 
     const verbAndHandler = targetRoute.verbs.find((vh) => vh.verb === verb);
@@ -457,17 +480,21 @@ export class Router {
     }
 
     if (!targetRoute) {
+      const keyNames = keys.map((k) => String(k.name));
       targetRoute = {
         id: this.nextRouteSubID++,
         route,
         regexp,
         match: match(regexp, { decode: decodeURIComponent }),
-        keys: keys.map((k) => String(k.name)),
+        keys: keyNames,
+        specificity: this.computeSpecificityScore(route, keyNames),
         listeners: [],
         validate,
       };
 
       this.outRoutes.push(targetRoute);
+      // Keep routes ordered by specificity (most specific first)
+      this.outRoutes.sort((a, b) => b.specificity - a.specificity);
     }
 
     return targetRoute.id;
@@ -483,14 +510,23 @@ export class Router {
       throw new Error(`Connection with id ${connSecret} does not exist`);
     }
 
+    // Find the most specific matching route and subscribe only to that
+    let best: { route: OutRouteLayer; params: string[] } | null = null;
     for (const route of this.outRoutes) {
-      const match = route.match(path);
-      if (match) {
-        route.listeners.push({
-          conn: connSecret,
-          params: Object.values(match.params),
-        });
+      const m = route.match(path);
+      if (m) {
+        const params = Object.values(m.params);
+        if (!best || route.specificity > best.route.specificity) {
+          best = { route, params };
+        }
       }
+    }
+
+    if (best) {
+      best.route.listeners.push({
+        conn: connSecret,
+        params: best.params,
+      });
     }
   }
 
@@ -504,6 +540,7 @@ export class Router {
       throw new Error(`Connection with id ${connSecret} does not exist`);
     }
 
+    // Remove from any matching route (in case of prior multiple subscriptions)
     for (const route of this.outRoutes) {
       const match = route.match(path);
       if (match) {
