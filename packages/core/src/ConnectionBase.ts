@@ -285,8 +285,8 @@ export abstract class ConnectionBase {
 
     let response: RouteResponse;
 
-    if (msg.status === 200) {
-      response = { data: msg.data, status: 200 } as RouteResponse;
+    if (msg.status >= 200 && msg.status < 300) {
+      response = { data: msg.data, status: msg.status } as RouteResponse;
     } else {
       response = { error: msg.data as string, data: '', status: msg.status } as RouteResponse;
     }
