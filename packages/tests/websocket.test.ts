@@ -1,12 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { Router } from '@neorest/router-core';
-import { NodeServerAdapter } from '@neorest/router-node';
+import { NodeRouter } from '@neorest/router-node';
 import { Client } from 'neorest';
 
 async function startServer(port = 8100, received: any[] = []) {
-  const router = new Router();
-  const adapter = new NodeServerAdapter({ port });
-  router.setServerAdapter(adapter);
+  const router = new NodeRouter({ port });
 
   router
     .onGet('/ping', async (ctx) => { ctx.response = 'pong'; })
