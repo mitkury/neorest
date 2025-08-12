@@ -16,7 +16,8 @@ import {
   RouteResponse,
   RouteVerb,
   Payload,
-  newConnectionSecret
+  newConnectionSecret,
+  msg_ConnDataSet
 } from '@neorest/core';
 import { createStrategy } from './strategies/index';
 
@@ -45,6 +46,14 @@ export class ClientConnection extends ConnectionBase {
     
     // Initialize with default secret
     this.setHeader('secret', newConnectionSecret());
+
+    // On connect, send the secret to the server so it can register this connection
+    this.onClientConnect = () => {
+      const secret = this.getSecret();
+      if (secret) {
+        this.postAndForget(msg_ConnDataSet('secret', secret));
+      }
+    };
     
     // Set up reconnect options
     this.reconnectOptions = {
@@ -188,7 +197,17 @@ export class ClientConnection extends ConnectionBase {
    * @param callback - The callback to call when a message is received on the route
    * @returns A promise that resolves when the subscription is established
    */
-  public subscribeToRoute<T = any>(route: string, callback: (broadcast: BroadcastEvent<T>) => void): Promise<void> {
+  public on<T = any>(
+    route: string,
+    callback: (broadcast: BroadcastEvent<T>) => void,
+  ): Promise<void> {
+    return this.connSubscribe(route, callback);
+  }
+
+  private connSubscribe<T = any>(
+    route: string,
+    callback: (broadcast: BroadcastEvent<T>) => void,
+  ): Promise<void> {
     return new Promise<void>(async (resolve, reject) => {
       // Check if already subscribed
       if (this.subscribedRoutes[route]) {
@@ -228,7 +247,7 @@ export class ClientConnection extends ConnectionBase {
    * Unsubscribe from a route
    * @param route - The route to unsubscribe from
    */
-  public unsubscribeFromRoute(route: string): void {
+  public off(route: string): void {
     // Send unsubscription message
     this.post(new_MsgUnsubscribeFromRoute(route), (response) => {
       if (response.error) {

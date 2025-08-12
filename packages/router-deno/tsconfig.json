@@ -8,11 +8,9 @@
     "declarationMap": true,
     "module": "ESNext",
     "target": "ES2020",
-    "moduleResolution": "node"
+    "moduleResolution": "node",
+    "skipLibCheck": true,
+    "noEmitOnError": false
   },
-  "include": ["src/**/*"],
-  "references": [
-    { "path": "../core" },
-    { "path": "../router-core" }
-  ]
+  "include": ["src/**/*"]
 }

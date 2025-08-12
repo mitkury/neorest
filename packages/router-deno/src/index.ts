@@ -1,8 +1,10 @@
 // Export main router class
-export { DenoRouter, DenoRouterOptions } from './DenoRouter';
+export { DenoRouter } from './DenoRouter';
+export type { DenoRouterOptions } from './DenoRouter';
 
 // Export adapter
-export { DenoServerAdapter, DenoServerAdapterOptions } from './adapters/DenoServerAdapter';
+export { DenoServerAdapter } from './adapters/DenoServerAdapter';
+export type { DenoServerAdapterOptions } from './adapters/DenoServerAdapter';
 
 // Export strategies
 export { HttpStrategy } from './strategies/HttpStrategy';

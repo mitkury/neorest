@@ -11,6 +11,11 @@ dist/
 build/
 *.tsbuildinfo
 
+# Prevent committing generated artifacts inside src
+packages/*/src/**/*.js
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.map
+
 # Debug files
 npm-debug.log*
 yarn-debug.log*

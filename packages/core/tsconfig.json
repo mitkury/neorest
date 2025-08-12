@@ -8,8 +8,7 @@
     "declarationMap": true,
     "module": "ESNext",
     "target": "ES2020",
-    "moduleResolution": "node",
-    "emitDeclarationOnly": true
+    "moduleResolution": "node"
   },
   "include": ["src/**/*"]
 }
