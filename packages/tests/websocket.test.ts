@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { NodeRouter } from '@neorest/router-node';
-import { Client } from 'neorest';
+import { NodeRouter } from '../../packages/router-node/dist/index.js';
+import { Client } from '../../packages/neorest/dist/index.js';
 
 async function startServer(port = 8100, received: any[] = []) {
   const router = new NodeRouter({ port });
