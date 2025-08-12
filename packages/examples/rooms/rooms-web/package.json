@@ -1,0 +1,19 @@
+{
+  "name": "@neorest/rooms-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --port 5173",
+    "build": "vite build",
+    "preview": "vite preview --port 5174"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-auto": "^3.2.4",
+    "@sveltejs/kit": "^2.5.10",
+    "@sveltejs/vite-plugin-svelte": "^3.1.2",
+    "svelte": "^4.2.19",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.3"
+  }
+}

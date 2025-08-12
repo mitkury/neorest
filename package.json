@@ -6,7 +6,8 @@
   "author": "Dmitry Kury (https://dkury.com)",
   "license": "MIT",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "packages/*/*"
   ],
   "scripts": {
     "clean": "npm run clean --workspaces",
