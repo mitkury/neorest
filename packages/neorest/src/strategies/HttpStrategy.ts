@@ -36,6 +36,7 @@ export class HttpStrategy implements ClientStrategy {
     // Perform handshake to obtain a clientId from the server
     try {
       const url = new URL(this.connectionInfo.url);
+      url.pathname = '/.neorest';
       const res = await fetch(url.toString(), {
         method: 'GET',
         headers: { 'Accept': 'application/json' }
@@ -107,6 +108,7 @@ export class HttpStrategy implements ClientStrategy {
 
         // Include clientId in URL
         const url = new URL(this.connectionInfo.url);
+        url.pathname = '/.neorest';
         if (this.clientId) {
           url.searchParams.set('clientId', this.clientId);
         }
@@ -203,6 +205,7 @@ export class HttpStrategy implements ClientStrategy {
       try {
         // Build poll URL with clientId and auth
         const pollUrl = new URL(this.connectionInfo.url);
+        pollUrl.pathname = '/.neorest';
         pollUrl.searchParams.set('poll', 'true');
         if (this.clientId) {
           pollUrl.searchParams.set('clientId', this.clientId);

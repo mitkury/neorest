@@ -617,4 +617,54 @@ export class Router {
       route.listeners = route.listeners.filter((l) => l.conn !== connSecret);
     }
   }
+
+  /**
+   * Execute a route directly for plain HTTP requests (no persistent sender connection).
+   * Returns status and body suitable for HTTP responses.
+   */
+  public async executeHttpRoute(
+    verb: 'GET' | 'POST' | 'DELETE',
+    path: string,
+    data: any,
+    headers: Record<string, string> = {},
+  ): Promise<{ status: number; body: any; contentType?: string }> {
+    // Create a synthetic sender connection that is not registered in this.connections.
+    // This allows handlers that pass ctx.sender to broadcast exclusion to work without errors,
+    // though no actual exclusion will occur since the synthetic connection is not tracked.
+    const syntheticSender = undefined as unknown as ServerConnection;
+
+    for (const route of this.inRoutes) {
+      const matchResult = route.match(path);
+      if (matchResult) {
+        const params: Record<string, string> = {};
+        for (let i = 0; i < route.keys.length; i++) {
+          params[route.keys[i]] = matchResult.params[i];
+        }
+
+        const ctx = {
+          params,
+          data,
+          headers: headers || {},
+          sender: syntheticSender,
+          route: path,
+        } as RequestContext;
+
+        const verbAndHandler = route.verbs.find((vh) => vh.verb === (verb as any));
+        if (!verbAndHandler) {
+          return { status: 405, body: { error: `Method ${verb} not allowed for ${path}` } };
+        }
+
+        await verbAndHandler.handler(ctx);
+
+        if (ctx.error) {
+          return { status: ctx.statusCode || 500, body: { error: ctx.error } };
+        }
+
+        // Default to JSON content
+        return { status: ctx.statusCode || 200, body: ctx.response, contentType: 'application/json' };
+      }
+    }
+
+    return { status: 404, body: { error: 'Not found' }, contentType: 'application/json' };
+  }
 }

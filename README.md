@@ -48,6 +48,42 @@ await (httpClient as any).conn.connect();
 const pong = await httpClient.get('/ping');
 ```
 
+## Plain HTTP routes (browser-friendly)
+
+- Routes you register on the server are also available over regular HTTP.
+- Open a browser to `http://localhost:8080/ping` and you’ll get a JSON response.
+- Subscriptions/events still use WebSocket (preferred) or HTTP long-polling under `/.neorest`.
+
+Example:
+
+```ts
+// Server
+import { NodeRouter } from '@neorest/router-node';
+const router = new NodeRouter({ port: 8080 });
+router
+  .onGet('/ping', (ctx) => { ctx.response = 'pong'; })
+  .onPost('/echo', (ctx) => { ctx.response = ctx.data; });
+await router.listen();
+```
+
+```bash
+# Browser or curl
+curl http://localhost:8080/ping
+# => "pong"
+
+curl -X POST http://localhost:8080/echo \
+  -H 'Content-Type: application/json' \
+  -d '{"hello":"world"}'
+# => {"hello":"world"}
+```
+
+Transport endpoints for the Neorest protocol live under `/.neorest`:
+- `GET /.neorest` (handshake, returns `{ clientId }`)
+- `GET /.neorest?poll=true&clientId=...` (poll for messages)
+- `POST /.neorest?clientId=...` (send a message)
+
+To disable plain HTTP routes (only expose `/.neorest` transport), pass `disableHttpRoutes: true` to `NodeRouter`.
+
 ## Scripts
 
 - `npm test`: builds Node packages and runs unit tests

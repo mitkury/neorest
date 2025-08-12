@@ -82,10 +82,10 @@ This document describes the current, implemented architecture of Neorest.
   - Creates HTTP/HTTPS server
   - Tries to enable WebSocket if `ws` is installed (dynamic import); handles `upgrade`
   - Option `disableWebSocket` to force HTTP‑only mode (useful for deployments and tests)
-  - HTTP interface:
-    - `GET` without `clientId` → returns `{ clientId }` (handshake)
-    - `GET ?poll=true&clientId=...` → returns queued messages or 204
-    - `POST` with a serialized `MsgWrapper` → enqueues/dispatches; after a brief wait, returns any queued messages as an array (e.g. immediate response and broadcasts) or 202 when none
+  - HTTP interface (transport under `/.neorest`):
+    - `GET /.neorest` without `clientId` → returns `{ clientId }` (handshake)
+    - `GET /.neorest?poll=true&clientId=...` → returns queued messages or 204
+    - `POST /.neorest?clientId=...` with a serialized `MsgWrapper` → enqueues/dispatches; after a brief wait, returns any queued messages as an array (e.g. immediate response and broadcasts) or 202 when none
     - CORS preflight support
   - Associates each `clientId` with a server `HttpStrategy` (extends `HttpStrategyBase`) and registers connections with the router
 
@@ -101,12 +101,17 @@ This document describes the current, implemented architecture of Neorest.
 
 - Auto (HTTP‑first with WS upgrade): `Client('http://host', 'auto')` ↔ `NodeRouter`
   - Immediately connects via HTTP long‑polling; upgrades to WS if available
+  - Uses `/.neorest` for HTTP handshake/poll/send
   - Sends prefer WS once connected; if WS send fails, transparently falls back to HTTP POST
   - Subscriptions and broadcasts delivered over active transports
 
 - WebSocket: `Client('ws://host', 'websocket')` ↔ `NodeRouter`
   - Request/response as above
   - Subscriptions via `client.on('/topic/news', cb)`; server uses `broadcastPost('/topic/news', data)`
+
+- Plain HTTP routes (browser-friendly):
+  - Access registered routes directly: `GET /ping`, `POST /echo`
+  - Returns JSON by default; same handlers and middleware as protocol invocations
 
 ### Alignment with the older spec
 
