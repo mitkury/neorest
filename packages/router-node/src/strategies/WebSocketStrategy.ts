@@ -17,8 +17,14 @@ export class WebSocketStrategy implements ServerStrategy {
   }
 
   private setupSocketHandlers(): void {
-    // ws server sockets are already open after upgrade
-    if (this.openCallback) this.openCallback();
+    // Only call open callback when the socket is confirmed open
+    if ((this.socket as any).readyState === 1 && this.openCallback) {
+      this.openCallback();
+    }
+
+    this.socket.on('open', () => {
+      if (this.openCallback) this.openCallback();
+    });
 
     this.socket.on('close', () => {
       if (this.closeCallback) this.closeCallback();
@@ -41,7 +47,7 @@ export class WebSocketStrategy implements ServerStrategy {
   }
 
   async connect(): Promise<void> {
-    if (this.openCallback) this.openCallback();
+    if ((this.socket as any).readyState === 1 && this.openCallback) this.openCallback();
   }
 
   disconnect(): void {

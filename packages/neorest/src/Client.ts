@@ -136,7 +136,7 @@ export class Client {
     route: string,
     callback: (broadcast: BroadcastEvent<T>) => void,
   ): Promise<void> {
-    return this.conn.subscribeToRoute<T>(route, callback);
+    return (this.conn as any).on(route, callback) as Promise<void>;
   }
 
   /**
@@ -144,6 +144,6 @@ export class Client {
    * @param route - The route to unsubscribe from
    */
   public off(route: string): void {
-    this.conn.unsubscribeFromRoute(route);
+    (this.conn as any).off(route);
   }
 }
