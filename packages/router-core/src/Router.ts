@@ -59,6 +59,7 @@ export interface RequestContext {
   route: string;
   response?: any;
   error?: string;
+  statusCode?: number;
 }
 
 /**
@@ -367,12 +368,14 @@ export class Router {
         if (ctx.error) {
           return {
             error: ctx.error,
-            data: null
+            data: null,
+            status: ctx.statusCode || 500,
           };
         }
 
         return {
-          data: ctx.response
+          data: ctx.response,
+          status: ctx.statusCode || 200,
         };
       }
     }
@@ -380,7 +383,8 @@ export class Router {
     // No matching route found
     return {
       error: `Route "${msg.route}" not found`,
-      data: null
+      data: null,
+      status: 404,
     };
   }
 

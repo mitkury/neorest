@@ -67,4 +67,5 @@ export interface RequestContext {
   error?: string;
   response: Payload;
   route: string;
+  statusCode?: number;
 }

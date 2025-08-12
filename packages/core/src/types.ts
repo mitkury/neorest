@@ -224,6 +224,7 @@ export function new_MsgBadRequest(targetMsgId: number, text: string): MsgRespons
 export interface RouteResponse<T = any> {
   data: T;
   error?: string;
+  status?: number;
 }
 
 /**
