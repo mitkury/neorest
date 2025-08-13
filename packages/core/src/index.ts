@@ -1,15 +1,15 @@
 // Export types
-export * from './types';
+export * from './types.js';
 
 // Export interfaces and types from CommunicationStrategy
-export * from './CommunicationStrategy';
+export * from './CommunicationStrategy.js';
 
 // Export base classes and their types
-export * from './ConnectionBase';
+export * from './ConnectionBase.js';
 
 // Export utilities
-export * from './utils/TrackedPromise';
-export * from './utils/connectionSecret';
+export * from './utils/TrackedPromise.js';
+export * from './utils/connectionSecret.js';
 
 // Re-export specific types that might be missing
 export type { 
@@ -18,4 +18,4 @@ export type {
   MsgWrapper, 
   ConnectionSecret, 
   Payload
-} from './types';
+} from './types.js';

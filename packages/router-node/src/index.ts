@@ -1,4 +1,4 @@
-// Export main router class (explicit .js extensions for Node ESM)
+// Export main router class
 export { NodeRouter } from './NodeRouter.js';
 export type { NodeRouterOptions } from './NodeRouter.js';
 

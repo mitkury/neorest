@@ -1,17 +1,17 @@
 // Export main router class
-export { Router } from './Router';
-export type { RouterOptions, ServerAdapter } from './Router';
+export { Router } from './Router.js';
+export type { RouterOptions, ServerAdapter } from './Router.js';
 
 // Export server connection class
-export { ServerConnection } from './ServerConnection';
+export { ServerConnection } from './ServerConnection.js';
 
 // Export type definitions
-export * from './types';
+export * from './types.js';
 
 // Export strategies
-export { WebSocketStrategy } from './strategies/WebSocketStrategy';
-export { HttpStrategyBase } from './strategies/HttpStrategyBase';
-export { withAuth } from './middleware';
+export { WebSocketStrategy } from './strategies/WebSocketStrategy.js';
+export { HttpStrategyBase } from './strategies/HttpStrategyBase.js';
+export { withAuth } from './middleware.js';
 
 // Export utility functions
 export {
@@ -22,4 +22,4 @@ export {
   type Match,
   type MatchResult,
   type Path
-} from './utils/pathToRegexp';
+} from './utils/pathToRegexp.js';
