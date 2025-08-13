@@ -1,23 +1,15 @@
 import { CommunicationStrategy } from '@neorest/core';
-import { WebSocketStrategy } from './WebSocketStrategy.js';
-import { HttpStrategy } from './HttpStrategy.js';
-import { AutoStrategy } from './AutoStrategy.js';
+import { WebSocketStrategy } from './WebSocketStrategy';
+import { HttpStrategy } from './HttpStrategy';
+import { AutoStrategy } from './AutoStrategy';
 
 /**
- * Create a strategy based on the type and URL
- * @param type - The type of strategy to create
- * @param url - The URL to connect to
- * @returns The strategy
+ * Create a strategy instance for the client
  */
 export function createStrategy(type: 'websocket' | 'http' | 'auto', url: string): CommunicationStrategy {
-  switch (type) {
-    case 'websocket':
-      return new WebSocketStrategy(url);
-    case 'http':
-      return new HttpStrategy(url);
-    case 'auto':
-      return new AutoStrategy(url);
-    default:
-      throw new Error(`Unsupported strategy type: ${type}`);
-  }
+  if (type === 'websocket') return new WebSocketStrategy(url);
+  if (type === 'http') return new HttpStrategy(url);
+  return new AutoStrategy(url);
 }
+
+export { WebSocketStrategy, HttpStrategy, AutoStrategy };

@@ -1,14 +1,14 @@
-// Export main client class (explicit .js extensions for ESM consumers)
-export { Client } from './Client.js';
+// Export main client class
+export { Client } from './Client';
 
 // Export strategies for advanced usage
-export { WebSocketStrategy } from './strategies/WebSocketStrategy.js';
-export { HttpStrategy } from './strategies/HttpStrategy.js';
-export { AutoStrategy } from './strategies/AutoStrategy.js';
-export { createStrategy } from './strategies/index.js';
+export { WebSocketStrategy } from './strategies/WebSocketStrategy';
+export { HttpStrategy } from './strategies/HttpStrategy';
+export { AutoStrategy } from './strategies/AutoStrategy';
+export { createStrategy } from './strategies';
 
 // Export connection class for advanced usage
-export { ClientConnection } from './ClientConnection.js';
+export { ClientConnection } from './ClientConnection';
 
 // Re-export types from core
 export type {
