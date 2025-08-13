@@ -5,13 +5,12 @@
     "rootDir": "./src",
     "composite": true,
     "declaration": true,
-    "declarationMap": true,
-    "module": "ESNext",
-    "target": "ES2020",
-    "moduleResolution": "Bundler"
+    "declarationMap": true
   },
   "include": ["src/**/*"],
   "references": [
-    { "path": "../core" }
+    { "path": "../core" },
+    { "path": "../router-core" },
+    { "path": "../router-node" }
   ]
 }

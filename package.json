@@ -6,7 +6,10 @@
   "author": "Dmitry Kury (https://dkury.com)",
   "license": "MIT",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "packages/*/*",
+    "packages/*/*/*",
+    "packages/neorest-node"
   ],
   "scripts": {
     "clean": "npm run clean --workspaces",

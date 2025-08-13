@@ -1,0 +1,27 @@
+{
+  "name": "@neorest/rooms-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview --port 5174"
+  },
+  "dependencies": {
+    "@neorest/core": "file:../../../core",
+    "neorest": "file:../../../neorest"
+  },
+  "overrides": {
+    "neorest": "file:../../../neorest",
+    "@neorest/core": "file:../../../core"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-auto": "^3.3.1",
+    "@sveltejs/kit": "^2.28.0",
+    "@sveltejs/vite-plugin-svelte": "^4.0.4",
+    "svelte": "^5.38.1",
+    "typescript": "^5.9.2",
+    "vite": "^5.4.19"
+  }
+}

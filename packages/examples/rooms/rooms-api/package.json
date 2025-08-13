@@ -1,0 +1,26 @@
+{
+  "name": "@neorest/rooms-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "rimraf dist && tsup src/index.ts --format esm,cjs",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "neorest-node": "file:../../../neorest-node"
+  },
+  "overrides": {
+    "neorest": "file:../../../neorest",
+    "neorest-node": "file:../../../neorest-node"
+  },
+  "devDependencies": {
+    "rimraf": "^5.0.10",
+    "tsup": "^8.4.0",
+    "typescript": "^5.5.4",
+    "tsx": "^4.19.2"
+  }
+}
