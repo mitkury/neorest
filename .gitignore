@@ -33,3 +33,4 @@ Thumbs.db
 
 # Legacy code
 old_src/
+*.log
