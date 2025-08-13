@@ -8,13 +8,13 @@ import type {
   CommunicationStrategy
 } from '@neorest/core';
 import { newConnectionSecret } from '@neorest/core';
-import { ServerConnection } from './ServerConnection.js';
+import { ServerConnection } from './ServerConnection';
 import { 
   Key,
   match,
   MatchFunction,
   pathToRegexp,
-} from './utils/pathToRegexp.js';
+} from './utils/pathToRegexp';
 
 /**
  * Router options

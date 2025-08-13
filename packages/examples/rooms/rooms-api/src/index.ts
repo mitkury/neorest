@@ -1,4 +1,4 @@
-import { NodeRouter } from '@neorest/router-node';
+import { NodeRouter } from 'neorest-node';
 import { randomUUID } from 'crypto';
 import type { ServerConnection } from '@neorest/router-core';
 
@@ -157,5 +157,5 @@ router.onValidateBroadcast('/rooms/:id/moved', () => true);
 router.onValidateBroadcast('/rooms/:id/chat', () => true);
 
 router.listen().then(() => {
-  console.log('Rooms API (neorest) listening on http://localhost:' + (process.env.PORT || 8787));
+  console.log('Rooms API (neorest-node) listening on http://localhost:' + (process.env.PORT || 8787));
 });

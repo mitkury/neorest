@@ -1,6 +1,6 @@
 import { ConnectionSecret } from '@neorest/core';
 import { Router, ServerAdapter } from '@neorest/router-core';
-import { HttpStrategy } from '../strategies/HttpStrategy.js';
+import { HttpStrategy } from '../strategies/HttpStrategy';
 // Removed static import of WebSocketStrategy to avoid pulling 'ws' at module load
 import { createServer as createHttpServer, Server as HttpServer } from 'http';
 import { createServer as createHttpsServer, Server as HttpsServer } from 'https';
@@ -140,7 +140,7 @@ export class NodeServerAdapter implements ServerAdapter {
     if (!this.router) return;
 
     // Defer loading the WebSocketStrategy to avoid importing 'ws' unless needed
-    const { WebSocketStrategy } = await import('../strategies/WebSocketStrategy.js');
+    const { WebSocketStrategy } = await import('../strategies/WebSocketStrategy');
 
     // Get reconnect secret from URL
     const url = new URL(request.url || '/', `http://${request.headers.host}`);

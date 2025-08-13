@@ -1,5 +1,5 @@
 import { Router, RouterOptions } from '@neorest/router-core';
-import { NodeServerAdapter, NodeServerAdapterOptions } from './adapters/NodeServerAdapter.js';
+import { NodeServerAdapter, NodeServerAdapterOptions } from './adapters/NodeServerAdapter';
 
 /**
  * Node.js-specific router options
