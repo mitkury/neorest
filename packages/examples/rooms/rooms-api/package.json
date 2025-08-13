@@ -5,13 +5,13 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsup src/index.ts --watch --format esm,cjs --onSuccess \"node dist/index.js\"",
+    "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "build": "rimraf dist && tsup src/index.ts --format esm,cjs",
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@neorest/router-node": "^0.1.0"
+    "@neorest/router-node": "file:../../../router-node"
   },
   "overrides": {
     "@neorest/core": "file:../../../core",
@@ -19,8 +19,9 @@
     "@neorest/router-node": "file:../../../router-node"
   },
   "devDependencies": {
+    "rimraf": "^5.0.10",
     "tsup": "^8.4.0",
     "typescript": "^5.5.4",
-    "rimraf": "^5.0.10"
+    "tsx": "^4.19.2"
   }
 }

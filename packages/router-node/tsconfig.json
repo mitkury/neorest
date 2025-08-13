@@ -8,7 +8,7 @@
     "declarationMap": true,
     "module": "ESNext",
     "target": "ES2020",
-    "moduleResolution": "node"
+    "moduleResolution": "Bundler"
   },
   "include": ["src/**/*"],
   "references": [

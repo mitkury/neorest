@@ -1,12 +1,9 @@
 import { sveltekit } from '@sveltejs/kit/vite';
-
-/** @type {import('@sveltejs/kit').Config} */
 import adapter from '@sveltejs/adapter-auto';
 
+/** @type {import('@sveltejs/kit').Config} */
 const config = {
-  kit: {
-    adapter: adapter()
-  },
+  kit: { adapter: adapter() },
   vitePlugin: { inspector: false }
 };
 

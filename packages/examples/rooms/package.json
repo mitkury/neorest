@@ -7,8 +7,8 @@
     "rooms-web"
   ],
   "scripts": {
-    "postinstall": "npm install --workspace=@neorest/rooms-api && npm install --workspace=@neorest/rooms-web",
-    "dev": "concurrently -n api,web -c blue,magenta \"npm:dev --workspace=@neorest/rooms-api\" \"npm:dev --workspace=@neorest/rooms-web\"",
+    "predev": "npm run build -w @neorest/core && npm run build -w @neorest/router-core && npm run build -w @neorest/router-node && npm run build -w neorest",
+    "dev": "npm run predev && concurrently -n api,web -c blue,magenta \"npm:dev --workspace=@neorest/rooms-api\" \"npm:dev --workspace=@neorest/rooms-web\"",
     "build": "npm run build --workspace=@neorest/rooms-api && npm run build --workspace=@neorest/rooms-web",
     "start": "concurrently -n api,web -c blue,magenta \"npm:start --workspace=@neorest/rooms-api\" \"npm:preview --workspace=@neorest/rooms-web\""
   },

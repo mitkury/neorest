@@ -1,0 +1,17 @@
+Debugger listening on ws://127.0.0.1:49606/08756320-ba8a-4acc-9ecb-0f1e3ec73d63
+For help, see: https://nodejs.org/en/docs/inspector
+Debugger attached.
+
+> @neorest/rooms-web@0.1.0 dev
+> vite dev
+
+Debugger listening on ws://127.0.0.1:49661/aab4256d-6fb3-4805-9765-dd2814cc518d
+For help, see: https://nodejs.org/en/docs/inspector
+Debugger attached.
+Forced re-optimization of dependencies
+
+  VITE v5.4.19  ready in 1979 ms
+
+  ➜  Local:   http://localhost:5177/
+  ➜  Network: use --host to expose
+  ➜  press h + enter to show help

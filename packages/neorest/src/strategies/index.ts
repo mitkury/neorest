@@ -1,7 +1,7 @@
 import { CommunicationStrategy } from '@neorest/core';
-import { WebSocketStrategy } from './WebSocketStrategy';
-import { HttpStrategy } from './HttpStrategy';
-import { AutoStrategy } from './AutoStrategy';
+import { WebSocketStrategy } from './WebSocketStrategy.js';
+import { HttpStrategy } from './HttpStrategy.js';
+import { AutoStrategy } from './AutoStrategy.js';
 
 /**
  * Create a strategy based on the type and URL

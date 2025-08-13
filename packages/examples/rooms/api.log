@@ -1,0 +1,16 @@
+Debugger listening on ws://127.0.0.1:65160/aa193dd6-cf5a-4677-88aa-a3c9f206a742
+For help, see: https://nodejs.org/en/docs/inspector
+Debugger attached.
+
+> @neorest/rooms-api@0.1.0 dev
+> tsx watch src/index.ts
+
+Debugger listening on ws://127.0.0.1:65187/6c542886-fca0-41d8-86c9-da1c6651b7bc
+For help, see: https://nodejs.org/en/docs/inspector
+Debugger attached.
+Debugger listening on ws://127.0.0.1:65209/a3024241-1e88-4489-8915-d45be16b36b7
+For help, see: https://nodejs.org/en/docs/inspector
+Debugger attached.
+Initializing Node.js server on 0.0.0.0:8787
+Server listening on http://0.0.0.0:8787
+Rooms API (neorest) listening on http://localhost:8787

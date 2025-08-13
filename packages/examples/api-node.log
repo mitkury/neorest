@@ -1,0 +1,22 @@
+Debugger listening on ws://127.0.0.1:52002/d9f34d79-e48e-4bc2-8bfb-e70f7fc0ae8c
+For help, see: https://nodejs.org/en/docs/inspector
+Debugger attached.
+Waiting for the debugger to disconnect...
+node:internal/modules/esm/resolve:257
+    throw new ERR_MODULE_NOT_FOUND(
+          ^
+
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/Users/dk/repos/neorest/packages/router-node/dist/adapters/NodeServerAdapter' imported from /Users/dk/repos/neorest/packages/router-node/dist/NodeRouter.js
+    at finalizeResolution (node:internal/modules/esm/resolve:257:11)
+    at moduleResolve (node:internal/modules/esm/resolve:913:10)
+    at defaultResolve (node:internal/modules/esm/resolve:1037:11)
+    at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:650:12)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:599:25)
+    at ModuleLoader.resolve (node:internal/modules/esm/loader:582:38)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:241:38)
+    at ModuleJob._link (node:internal/modules/esm/module_job:132:49) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///Users/dk/repos/neorest/packages/router-node/dist/adapters/NodeServerAdapter'
+}
+
+Node.js v22.11.0
