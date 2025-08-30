@@ -22,6 +22,7 @@
 
   onMount(async () => {
     client = new Client(apiBase, 'auto');
+    await (client as any).conn.connect();
     await loadRooms();
   });
 </script>

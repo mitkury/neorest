@@ -9,7 +9,7 @@
 
   const apiBase = (import.meta.env.VITE_API_BASE as string) || 'http://localhost:8787';
 
-  let roomId: string;
+  let roomId: string = '';
   let client: Client;
   let userId: string | null = null;
 
@@ -96,6 +96,7 @@
   let unsub: () => void;
   onMount(async () => {
     client = new Client(apiBase, 'auto');
+    await (client as any).conn.connect();
 
     // Fetch room state and join to get assigned userId
     const joinRes = await client.post<{ userId: string; state: { users: Record<string, User>; chat: ChatMessage[]; map: MapSize } }>(`/api/rooms/${roomId}/join`, {});
