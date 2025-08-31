@@ -1,5 +1,4 @@
 {
-  "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
@@ -8,10 +7,11 @@
     "declarationMap": true,
     "module": "ESNext",
     "target": "ES2020",
-    "moduleResolution": "Bundler"
+    "moduleResolution": "Bundler",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "skipLibCheck": true
   },
-  "include": ["src/**/*"],
-  "references": [
-    { "path": "../core" }
-  ]
+  "include": ["src/**/*"]
 }

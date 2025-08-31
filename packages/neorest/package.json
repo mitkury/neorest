@@ -2,27 +2,68 @@
   "name": "neorest",
   "version": "0.1.0",
   "description": "REST APIs with WebSockets. Do regular REST operations (GET, POST, DELETE) on routes, and subscribe to them",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
   "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "browser": {
+        "import": "./dist/index.browser.mjs",
+        "require": "./dist/index.browser.cjs"
+      },
+      "deno": "./deno/mod.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.mjs"
+    },
+    "./node": {
+      "import": "./dist/node.mjs",
+      "require": "./dist/node.cjs"
+    },
+    "./browser": {
+      "import": "./dist/index.browser.mjs",
+      "require": "./dist/index.browser.cjs"
+    },
+    "./deno": "./deno/mod.ts",
+    "./core": {
+      "import": "./dist/core.mjs",
+      "require": "./dist/core.cjs"
+    }
+  },
+  "browser": {
+    "./dist/node.mjs": false,
+    "./dist/node.cjs": false,
+    "ws": false,
+    "fs": false,
+    "path": false,
+    "crypto": false
+  },
   "scripts": {
-    "prebuild": "rimraf dist",
-    "build": "tsc -b",
-    "clean": "rimraf dist",
+    "prebuild": "rimraf dist deno",
+    "build": "tsup && tsup --config tsup.browser.config.ts && tsup --config tsup.deno.config.ts",
+    "build:node": "tsup",
+    "build:browser": "tsup --config tsup.browser.config.ts",
+    "build:deno": "tsup --config tsup.deno.config.ts",
+    "clean": "rimraf dist deno",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Dmitry Kury (https://dkury.com)",
   "license": "MIT",
   "files": [
-    "dist"
+    "dist",
+    "deno"
   ],
   "dependencies": {
-    "@neorest/core": "^0.1.0"
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "typescript": "^5.0.0",
     "rimraf": "^5.0.0",
-    "@types/node": "^20.0.0"
+    "@types/node": "^20.0.0",
+    "@types/ws": "^8.5.10",
+    "tsup": "^8.4.0"
   },
   "keywords": [
     "REST",

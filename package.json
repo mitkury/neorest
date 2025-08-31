@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "clean": "npm run clean --workspaces",
-    "build": "npm run build -w @neorest/core && npm run build -w @neorest/router-core && npm run build -w @neorest/router-node && npm run build -w neorest",
+    "build": "npm run build -w neorest",
     "pretest": "npm run build",
     "test": "npm run test -w @neorest/tests",
     "test:unit": "npm run test",
