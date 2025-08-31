@@ -62,6 +62,7 @@ export abstract class ConnectionBase {
   protected headers: Record<string, Payload> = {};
   protected messageHandlers: MessageHandlerMap = {};
   protected closingTimer: ReturnType<typeof setTimeout> | null = null;
+  protected rateLimitInterval: ReturnType<typeof setInterval> | null = null;
   
   // Event handlers
   public onOpen: () => void = () => {};
@@ -92,6 +93,7 @@ export abstract class ConnectionBase {
    */
   public close(): void {
     this.clearClosingTimer();
+    this.clearRateLimitInterval();
     this.strategy.disconnect();
   }
 
@@ -141,7 +143,7 @@ export abstract class ConnectionBase {
    * Set up rate limiting
    */
   private setupRateLimiting(): void {
-    setInterval(() => {
+    this.rateLimitInterval = setInterval(() => {
       this.messagesSentInASecond = 0;
     }, 1000);
   }
@@ -422,6 +424,16 @@ export abstract class ConnectionBase {
     if (this.closingTimer) {
       clearTimeout(this.closingTimer);
       this.closingTimer = null;
+    }
+  }
+
+  /**
+   * Clear the rate limit interval
+   */
+  protected clearRateLimitInterval(): void {
+    if (this.rateLimitInterval) {
+      clearInterval(this.rateLimitInterval);
+      this.rateLimitInterval = null;
     }
   }
 
