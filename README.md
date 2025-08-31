@@ -35,6 +35,7 @@ Neorest works across multiple runtimes with a single package:
 
 - `packages/neorest`: Main package with multi-runtime support
 - `packages/tests`: Unit tests (Vitest)
+- `packages/benchmark`: Performance benchmarking and stress testing suite
 - `packages/playground`: Example applications and demos
 - `packages/e2e-tests`: E2E tests (Playwright, planned)
 
@@ -141,6 +142,30 @@ To disable plain HTTP routes (only expose `/.neorest` transport), pass `disableH
 - `npm test`: builds package and runs unit tests
 - `npm run test:unit`: alias to `npm test`
 - `npm run test:e2e`: placeholder for Playwright E2E
+
+## Performance Benchmarking
+
+The project includes a comprehensive benchmarking suite to test performance and detect memory leaks:
+
+```bash
+# Run full benchmark suite
+cd packages/benchmark
+node benchmark.js full
+
+# Run stress test only
+node benchmark.js stress --connections=100 --messages=50
+
+# Run memory leak test only
+node benchmark.js memory --iterations=50 --connections-per-iter=20
+```
+
+The benchmark suite includes:
+- **Stress Testing**: Tests connection limits and message throughput
+- **Memory Leak Detection**: Identifies memory leaks in connection lifecycle
+- **Performance Metrics**: Detailed performance analysis and reporting
+- **Automated Testing**: Easy-to-use CLI interface with configurable parameters
+
+See `packages/benchmark/README.md` for detailed usage instructions.
 
 ## Development Status
 
