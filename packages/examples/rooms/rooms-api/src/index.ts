@@ -1,6 +1,6 @@
 import { NodeRouter } from '../../../../router-node/src/NodeRouter.ts';
 import { randomUUID } from 'crypto';
-import type { ServerConnection } from '@neorest/router-core';
+import type { ServerConnection } from 'neorest/core';
 
 interface User {
   id: string;

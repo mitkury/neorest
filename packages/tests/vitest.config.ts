@@ -4,10 +4,9 @@ import path from 'node:path';
 export default defineConfig({
   resolve: {
     alias: {
-      '@neorest/core': path.resolve(__dirname, '../core/src'),
-      '@neorest/router-core': path.resolve(__dirname, '../router-core/src'),
-      '@neorest/router-node': path.resolve(__dirname, '../router-node/src'),
       'neorest': path.resolve(__dirname, '../neorest/src'),
+      'neorest/node': path.resolve(__dirname, '../neorest/src/node'),
+      'neorest/core': path.resolve(__dirname, '../neorest/src/core'),
     }
   },
   test: {
