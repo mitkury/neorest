@@ -204,3 +204,19 @@ The discovery and fix of this memory leak was critical for production stability.
 2. **Monitor production systems** for any remaining issues
 3. **Implement the recommended improvements** for long-term stability
 4. **Use the automated test runner** in CI/CD pipelines
+5. **Use the benchmarking suite** to monitor performance and detect future issues
+
+## Benchmarking Suite Added
+
+A comprehensive benchmarking suite has been added to `packages/benchmark/` that includes:
+
+- **Stress Testing**: Tests connection limits and message throughput
+- **Memory Leak Detection**: Identifies memory leaks in connection lifecycle
+- **Performance Metrics**: Detailed performance analysis and reporting
+- **Automated Testing**: Easy-to-use CLI interface with configurable parameters
+
+This suite will help prevent similar issues in the future by providing:
+- Early detection of memory leaks
+- Performance regression testing
+- Automated stress testing
+- Comprehensive metrics and reporting
