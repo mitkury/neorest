@@ -56,7 +56,7 @@ describe('neorest client ↔ node server (websocket)', () => {
       }
 
       // Wait until both broadcasts are received or timeout
-      const waitUntil = async (cond: () => boolean, timeoutMs = 2000) => {
+      const waitUntil = async (cond: () => boolean, timeoutMs = 5000) => {
         const start = Date.now();
         while (!cond()) {
           if (Date.now() - start > timeoutMs) break;

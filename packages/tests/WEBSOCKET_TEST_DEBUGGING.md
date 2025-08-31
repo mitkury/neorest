@@ -14,111 +14,73 @@ The issue was identified as a **test isolation problem** related to the Vitest c
 
 1. **Test Pool Configuration**: Using `pool: 'threads'` with `maxConcurrency: 1` was not providing proper test isolation
 2. **Resource Sharing**: Tests were sharing resources and interfering with each other despite the concurrency setting
+3. **Timing Issues**: The WebSocket test's `waitUntil` function had a 2-second timeout that was insufficient when tests were running concurrently
 
 ## Solution
 
 ### Primary Fix: Test Pool Configuration
 
-Changed the Vitest configuration from `pool: 'threads'` to `pool: 'forks'`:
-
+Changed the Vitest configuration from:
 ```typescript
-// packages/tests/vitest.config.ts
-export default defineConfig({
-  resolve: {
-    alias: {
-      'neorest': path.resolve(__dirname, '../neorest/src'),
-      'neorest/node': path.resolve(__dirname, '../neorest/src/node'),
-      'neorest/core': path.resolve(__dirname, '../neorest/src/core'),
-    }
-  },
-  test: {
-    environment: 'node',
-    include: ['**/*.test.ts'],
-    watch: false,
-    pool: 'forks',  // Changed from 'threads' to 'forks'
-    testTimeout: 30000,
-    maxConcurrency: 1,
-  },
-});
+test: {
+  pool: 'threads',
+  maxConcurrency: 1,
+  testTimeout: 30000,
+}
 ```
 
-### Why This Fix Works
-
-1. **Better Isolation**: The `forks` pool creates separate Node.js processes for each test, providing better isolation than threads
-2. **Resource Separation**: Each test runs in its own process, preventing resource sharing and interference
-3. **WebSocket Server Isolation**: Each test gets its own WebSocket server instance without interference from other tests
-
-## Current Status
-
-- **✅ 8/8 test files passing**
-- **✅ 10/10 tests passing** 
-- **✅ Core functionality working**: connection secrets, port allocation, reconnection logic
-- **✅ WebSocket test concurrency issue resolved**
-
-## Investigation Findings
-
-### What Was NOT the Problem
-
-1. **WebSocket Implementation**: The WebSocket strategy and connection logic were working correctly
-2. **Port Allocation**: The port manager was properly allocating unique ports for each test
-3. **Connection Secrets**: The connection secret generation and validation was working fine
-4. **Global State**: No global state issues were found in the Neorest implementation
-
-### What WAS the Problem
-
-1. **Test Runner Configuration**: The `threads` pool was not providing sufficient isolation between tests
-2. **Resource Contention**: Tests were sharing resources despite the `maxConcurrency: 1` setting
-3. **WebSocket Server Interference**: Multiple WebSocket servers were interfering with each other
-
-## Testing Strategies Used
-
-### 1. Isolated Testing
-```bash
-# Test 1: Run WebSocket test alone
-npm test -- websocket.test.ts
-
-# Test 2: Run all tests together
-npm test
-```
-
-### 2. Configuration Testing
+To:
 ```typescript
-// Tested different pool configurations
-pool: 'threads'  // ❌ Failed
-pool: 'forks'    // ✅ Passed
-pool: 'vmThreads'  // Not tested
-pool: 'childProcess'  // Not tested
+test: {
+  pool: 'forks',
+  maxConcurrency: 1,
+  testTimeout: 30000,
+}
 ```
 
-### 3. Debugging Approach
-- Added console.log statements to track test execution flow
-- Verified that the WebSocket test was working correctly in isolation
-- Identified that the issue was test infrastructure, not application logic
+### Secondary Fix: Increased Timeout
 
-## Lessons Learned
+Increased the `waitUntil` timeout in the WebSocket test from 2000ms to 5000ms to provide more buffer for timing-sensitive operations.
 
-1. **Test Isolation is Critical**: For tests involving network connections (WebSocket, HTTP), proper isolation is essential
-2. **Pool Configuration Matters**: The choice between `threads` and `forks` can significantly impact test reliability
-3. **Concurrency Settings Aren't Always Sufficient**: `maxConcurrency: 1` with `threads` pool doesn't guarantee complete isolation
-4. **Debugging Strategy**: Isolating the problem (running test alone) helped identify that the issue was infrastructure, not application logic
+## Why This Fixes the Issue
 
-## Success Criteria Met
+### Thread vs Process Isolation
 
-- [x] All tests pass when run together
-- [x] WebSocket test passes consistently
-- [x] No test interference
-- [x] Proper resource isolation
-- [x] Maintainable solution
+**`pool: 'threads'` (Problematic):**
+- Tests run in separate threads within the same Node.js process
+- Shared memory space, event loop, and global objects
+- Module cache is shared between tests
+- Resource cleanup between tests is unreliable
 
-## Notes
+**`pool: 'forks'` (Solution):**
+- Tests run in separate Node.js processes
+- Complete isolation of memory, event loops, and global state
+- Each test gets its own module cache
+- Proper resource cleanup when processes terminate
 
-- The core functionality (connection secrets, port allocation) was working perfectly throughout
-- This was a test infrastructure issue, not a library functionality issue
-- The fix does not break existing functionality
-- The solution is maintainable and follows Vitest best practices
+### The Real Issue
 
-## Future Considerations
+The core problem was that even with `maxConcurrency: 1`, the `pool: 'threads'` setting meant that:
+1. Tests were still sharing the same Node.js process
+2. Global state, event listeners, and timers could interfere between tests
+3. The WebSocket connection cleanup wasn't fully isolated
+4. The 2-second timeout in the `waitUntil` function was too aggressive for concurrent test execution
 
-1. **Monitor Test Performance**: The `forks` pool may be slightly slower than `threads`, but provides better reliability
-2. **Consider Test Parallelization**: If performance becomes an issue, consider running different test suites in parallel rather than individual tests
-3. **WebSocket Testing Best Practices**: Always ensure proper cleanup and isolation when testing WebSocket functionality
+### Why the Fix Works
+
+1. **Process Isolation**: Each test runs in its own process, eliminating shared state issues
+2. **Proper Cleanup**: When a test process terminates, all its resources are automatically cleaned up
+3. **Reliable Timing**: The increased timeout provides buffer for timing-sensitive WebSocket operations
+4. **No Interference**: Tests can't interfere with each other's network connections, timers, or event listeners
+
+## Verification
+
+The fix has been verified by:
+- ✅ Running tests 5+ times consecutively with 100% success rate
+- ✅ All 8 test files and 10 tests passing consistently
+- ✅ WebSocket test passing both in isolation and with full test suite
+- ✅ No more intermittent timeouts or hanging tests
+
+## Conclusion
+
+The issue was fundamentally a **test isolation problem**, not a bug in the Neorest WebSocket implementation. The solution ensures proper test isolation while maintaining the performance benefits of parallel test execution where possible.
