@@ -18,7 +18,7 @@ npm run dev
 ```
 
 This starts both:
-- API: neorest `@neorest/router-node` on http://localhost:8787
+- API: neorest `neorest/node` on http://localhost:8787
 - Web: SvelteKit dev server on http://localhost:5173
 
 Open the web app, create a room, open it in two tabs, move around and chat.

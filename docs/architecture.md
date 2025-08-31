@@ -1,17 +1,19 @@
-## Neorest Architecture (Current)
+## Neorest Architecture
 
-This document describes the current, implemented architecture of Neorest.
+This document describes the architecture of Neorest.
 
-### Monorepo Overview
+### Package Structure
 
-- **packages/core**: Shared types, protocol, base connection class, and strategy interfaces
-- **packages/neorest**: Universal client (Browser/Node) and client strategies (WebSocket, HTTP long‑polling)
-- **packages/router-core**: Platform‑agnostic router, route matching, server connection, server strategies base
-- **packages/router-node**: Node.js adapter (HTTP server, optional WebSocket via `ws`), Node strategies
-- **packages/router-deno**: Deno adapter (not in the default Node build/tests)
+- **packages/neorest**: Main package with multi-runtime support
+  - **src/core/**: Shared types, protocol, base connection class, and strategy interfaces
+  - **src/node/**: Node.js adapter (HTTP server, optional WebSocket via `ws`), Node strategies
+  - **src/deno/**: Deno adapter and strategies
+  - **src/browser/**: Browser-specific code (if needed)
+  - **src/**: Universal client (Browser/Node/Deno) and client strategies (WebSocket, HTTP long‑polling)
 - **packages/tests**: Unit tests validating HTTP and WebSocket flows
+- **packages/playground**: Example applications and demos
 
-### Core Package (`@neorest/core`)
+### Core Package (`neorest/core`)
 
 - **Strategy interfaces** (`CommunicationStrategy`, `ClientStrategy`, `ServerStrategy`):
   - `connect()`, `disconnect()`, `send(message)`, `onMessage(cb)`, `onClose(cb)`, `onOpen(cb)`, `isConnected()`
@@ -54,7 +56,7 @@ This document describes the current, implemented architecture of Neorest.
     - Adds auth headers if provided via `setAuthentication`
   - Auto: Starts over HTTP long‑polling for immediate connectivity, attempts a background WebSocket upgrade, and prefers WS for sending once connected; if WS send fails, falls back to HTTP `POST` transparently. Receives messages from whichever transports are active.
 
-### Router Core (`@neorest/router-core`)
+### Router Core (`neorest/core`)
 
 - **Router**
   - Manages active `ServerConnection`s keyed by connection secret
@@ -74,7 +76,7 @@ This document describes the current, implemented architecture of Neorest.
   - `WebSocketStrategy` (platform‑agnostic, browser WS API interface)
   - `HttpStrategyBase` for long‑polling on the server side; per‑client message queue, polling timeout, and `processMessage`
 
-### Node Router (`@neorest/router-node`)
+### Node Router (`neorest/node`)
 
 - **NodeRouter**: Extends `Router`; wires the `NodeServerAdapter` and delegates `listen()/close()` to it
 
@@ -113,16 +115,22 @@ This document describes the current, implemented architecture of Neorest.
   - Access registered routes directly: `GET /ping`, `POST /echo`
   - Returns JSON by default; same handlers and middleware as protocol invocations
 
-### Alignment with the older spec
+### Multi-Runtime Support
 
-- **Implemented**: split client/server connections, message protocol, broadcast API, reconnection, Node adapter, HTTP long‑polling and WebSocket strategies, type‑safe `RouteResponse<T>`
-- **Partially/Not yet**: token‑based auth (currently a per‑connection secret is set and sent); SSE strategy; richer `RequestContext` helpers; Deno path is present but not in the default build/tests
+- **Node.js**: Full server and client support with WebSocket and HTTP long-polling
+- **Deno**: Full server and client support with native WebSocket and HTTP APIs
+- **Browser**: Client support with WebSocket and HTTP fallback strategies
+
+### Implementation Status
+
+- **Implemented**: split client/server connections, message protocol, broadcast API, reconnection, Node adapter, HTTP long‑polling and WebSocket strategies, type‑safe `RouteResponse<T>`, multi-runtime package structure
+- **Partially/Not yet**: token‑based auth (currently a per‑connection secret is set and sent); SSE strategy; richer `RequestContext` helpers
 
 ### Minimal Usage
 
 ```ts
-// Server (Node)
-import { NodeRouter } from '@neorest/router-node';
+// Server (Node.js)
+import { NodeRouter } from 'neorest/node';
 
 const router = new NodeRouter({ port: 8080 });
 router
@@ -133,13 +141,13 @@ router
   });
 await router.listen();
 
-// Client
+// Client (any runtime)
 import { Client } from 'neorest';
-const ws = new Client('ws://localhost:8080', 'websocket');
-await (ws as any).conn.connect();
-const pong = await ws.get('/ping');
-await ws.on('/messages', (evt) => console.log('broadcast', evt.data));
-await ws.post('/messages', { text: 'hello' });
+const client = new Client('ws://localhost:8080', 'websocket');
+await (client as any).conn.connect();
+const pong = await client.get('/ping');
+await client.on('/messages', (evt) => console.log('broadcast', evt.data));
+await client.post('/messages', { text: 'hello' });
 ```
 
 ### Notes

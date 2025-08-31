@@ -4,7 +4,7 @@ import {
   RouteVerb,
   BroadcastEvent,
   ConnectionOptions
-} from '@neorest/core';
+} from './core';
 import { ClientConnection } from './ClientConnection';
 import { createStrategy } from './strategies/index';
 

@@ -1,4 +1,4 @@
-import { CommunicationStrategy } from '@neorest/core';
+import { CommunicationStrategy } from '../core';
 import { WebSocketStrategy } from './WebSocketStrategy';
 import { HttpStrategy } from './HttpStrategy';
 import { AutoStrategy } from './AutoStrategy';

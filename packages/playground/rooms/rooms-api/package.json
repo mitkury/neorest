@@ -11,11 +11,10 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@neorest/router-node": "file:../../../router-node"
+    "neorest": "file:../../../neorest"
   },
   "overrides": {
-    "neorest": "file:../../../neorest",
-    "@neorest/router-node": "file:../../../router-node"
+    "neorest": "file:../../../neorest"
   },
   "devDependencies": {
     "rimraf": "^5.0.10",

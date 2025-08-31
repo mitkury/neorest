@@ -1,4 +1,4 @@
-import { CommunicationStrategy, MsgWrapper, ClientStrategy, ConnectionInfo } from '@neorest/core';
+import { CommunicationStrategy, MsgWrapper, ClientStrategy, ConnectionInfo } from '../core';
 
 /**
  * HTTP-based communication strategy using long polling

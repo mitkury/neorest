@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { NodeRouter } from '@neorest/router-node';
+import { NodeRouter } from 'neorest/node';
 import { Client } from 'neorest';
-import type { RequestContext } from '@neorest/router-core';
+import type { RequestContext } from 'neorest/core';
 
 async function startServer(port = 8104) {
   const router = new NodeRouter({ port, disableWebSocket: true });

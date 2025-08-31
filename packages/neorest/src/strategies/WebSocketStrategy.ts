@@ -1,4 +1,4 @@
-import { ClientStrategy, MsgWrapper, ConnectionInfo } from '@neorest/core';
+import { ClientStrategy, MsgWrapper, ConnectionInfo } from '../core';
 
 /**
  * WebSocket-based communication strategy using standard browser API
