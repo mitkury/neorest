@@ -175,6 +175,7 @@ var _ConnectionBase = class _ConnectionBase {
     this.headers = {};
     this.messageHandlers = {};
     this.closingTimer = null;
+    this.rateLimitInterval = null;
     // Event handlers
     this.onOpen = () => {
     };
@@ -199,6 +200,7 @@ var _ConnectionBase = class _ConnectionBase {
    */
   close() {
     this.clearClosingTimer();
+    this.clearRateLimitInterval();
     this.strategy.disconnect();
   }
   /**
@@ -243,7 +245,7 @@ var _ConnectionBase = class _ConnectionBase {
    * Set up rate limiting
    */
   setupRateLimiting() {
-    setInterval(() => {
+    this.rateLimitInterval = setInterval(() => {
       this.messagesSentInASecond = 0;
     }, 1e3);
   }
@@ -472,6 +474,15 @@ var _ConnectionBase = class _ConnectionBase {
     if (this.closingTimer) {
       clearTimeout(this.closingTimer);
       this.closingTimer = null;
+    }
+  }
+  /**
+   * Clear the rate limit interval
+   */
+  clearRateLimitInterval() {
+    if (this.rateLimitInterval) {
+      clearInterval(this.rateLimitInterval);
+      this.rateLimitInterval = null;
     }
   }
   /**
