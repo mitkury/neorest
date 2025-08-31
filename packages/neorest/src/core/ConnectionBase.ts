@@ -425,6 +425,8 @@ export abstract class ConnectionBase {
     }
   }
 
+
+
   /**
    * Register a handler for a message type
    * @param type - The message type

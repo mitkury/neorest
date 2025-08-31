@@ -13,7 +13,7 @@ export default defineConfig({
     environment: 'node',
     include: ['**/*.test.ts'],
     watch: false,
-    pool: 'threads',
+    pool: 'forks',
     testTimeout: 30000,
     maxConcurrency: 1,
   },
