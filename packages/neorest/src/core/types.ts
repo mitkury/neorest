@@ -387,6 +387,7 @@ export type InRouteLayer = {
   regexp: RegExp;
   match: MatchFunction;
   keys: string[];
+  specificity: number;
   verbs: VerbAndHandler[];
 };
 
@@ -399,6 +400,7 @@ export type OutRouteLayer = {
   regexp: RegExp;
   match: MatchFunction;
   keys: string[];
+  specificity: number;
   listeners: RouteListener[];
   validate: (
     conn: any, // ServerConnection type will be imported where needed

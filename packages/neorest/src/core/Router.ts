@@ -347,6 +347,12 @@ export class Router {
     };
   }
 
+  /**
+   * Compute a specificity score for route matching precedence.
+   * This follows web framework conventions where more specific routes (static segments)
+   * take precedence over less specific ones (parameters, wildcards).
+   * Used to resolve ambiguity when multiple routes could match a request.
+   */
   private computeSpecificityScore(route: string, keys: string[]): number {
     const segments = route.split('/').filter(Boolean);
     let staticSegments = 0;
