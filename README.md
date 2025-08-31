@@ -11,41 +11,93 @@ For example:
 - `/posts/{id}/comments`
 - `/chat/threads/{id}`
 
-## Quick start (NodeJS + Browser focus)
+## Quick start
 
-- npm install
-- npm test
+```bash
+npm install neorest
+npm test
+```
 
-This will build the NodeJS-related packages and run unit tests that cover:
+This will build the package and run unit tests that cover:
 - HTTP long-polling client ↔ Node server
 - WebSocket client ↔ Node server
+- Multi-runtime support (Node.js, Deno, Browser)
 
-## Packages
+## Multi-Runtime Support
 
-- `packages/core`: Core types, interfaces, and utilities
-- `packages/neorest`: Client (Browser/Node) with HTTP + WebSocket strategies
-- `packages/router-core`: Router base implementation (platform-agnostic)
-- `packages/router-node`: Node.js server adapter and strategies
+Neorest works across multiple runtimes with a single package:
+
+- **Node.js**: Server and client support
+- **Deno**: Server and client support  
+- **Browser**: Client support with WebSocket and HTTP fallback
+
+## Package Structure
+
+- `packages/neorest`: Main package with multi-runtime support
 - `packages/tests`: Unit tests (Vitest)
+- `packages/examples`: Example applications
 - `packages/e2e-tests`: E2E tests (Playwright, planned)
-
-Deno-specific code lives in `packages/router-deno`, but it is not part of the default NodeJS unit test and build flow.
 
 ## Usage
 
+### Client (Browser/Node.js/Deno)
+
 ```typescript
-// Client (Browser/Node)
 import { Client } from 'neorest';
 
-// WebSocket
-const wsClient = new Client('ws://localhost:8080', 'websocket');
-await (wsClient as any).conn.connect();
-await wsClient.post('/messages', { text: 'hello' });
+// Create a client
+const client = new Client('ws://localhost:3000');
 
-// HTTP long-polling
-const httpClient = new Client('http://localhost:8080', 'http');
-await (httpClient as any).conn.connect();
-const pong = await httpClient.get('/ping');
+// Make REST requests
+const response = await client.get('/users');
+const user = await client.post('/users', { name: 'John' });
+await client.delete('/users/123');
+
+// Subscribe to real-time updates
+client.subscribe('/users', (event) => {
+  console.log('User updated:', event.data);
+});
+```
+
+### Server (Node.js)
+
+```typescript
+import { NodeRouter } from 'neorest/node';
+
+const router = new NodeRouter();
+
+// Define routes
+router.get('/users', (ctx) => {
+  ctx.response = { users: [] };
+});
+
+router.post('/users', (ctx) => {
+  const user = ctx.data;
+  // Save user...
+  ctx.response = { id: 123, ...user };
+  
+  // Broadcast to subscribers
+  router.broadcast('/users', { action: 'POST', data: user });
+});
+
+// Start server
+await router.start(3000);
+```
+
+### Server (Deno)
+
+```typescript
+import { DenoRouter } from 'neorest/deno';
+
+const router = new DenoRouter();
+
+// Define routes
+router.get('/users', (ctx) => {
+  ctx.response = { users: [] };
+});
+
+// Start server
+await router.start(3000);
 ```
 
 ## Plain HTTP routes (browser-friendly)
@@ -58,7 +110,7 @@ Example:
 
 ```ts
 // Server
-import { NodeRouter } from '@neorest/router-node';
+import { NodeRouter } from 'neorest/node';
 const router = new NodeRouter({ port: 8080 });
 router
   .onGet('/ping', (ctx) => { ctx.response = 'pong'; })
@@ -86,17 +138,19 @@ To disable plain HTTP routes (only expose `/.neorest` transport), pass `disableH
 
 ## Scripts
 
-- `npm test`: builds Node packages and runs unit tests
+- `npm test`: builds package and runs unit tests
 - `npm run test:unit`: alias to `npm test`
 - `npm run test:e2e`: placeholder for Playwright E2E
 
 ## Development Status
 
-Focusing on a production-ready NodeJS + Browser setup first:
+Multi-runtime support with production-ready features:
 - ✅ Core architecture
 - ✅ WebSocket strategy (client + server)
 - ✅ HTTP long-polling strategy (client + server)
 - ✅ Node.js router and adapter
+- ✅ Deno router and adapter
+- ✅ Multi-runtime package structure
 - ✅ Unit tests that verify HTTP and WebSocket flows
 - 🚧 E2E tests (Playwright)
 - 🚧 Auth/security, versioning, metrics, docs

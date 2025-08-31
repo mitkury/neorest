@@ -12,7 +12,6 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      neorest: path.resolve(__dirname, '../../../neorest/src'),
       'neorest': path.resolve(__dirname, '../../../neorest/src')
     }
   }

@@ -1,4 +1,4 @@
-import { NodeRouter } from '../../../../router-node/src/NodeRouter.ts';
+import { NodeRouter } from 'neorest/node';
 import { randomUUID } from 'crypto';
 import type { ServerConnection } from 'neorest/core';
 
