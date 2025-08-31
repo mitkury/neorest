@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { NodeRouter } from 'neorest/node';
 import { Client } from 'neorest';
+import { portManager } from './utils/portManager';
 
-async function startServer(port = 8101, received: any[] = []) {
-  const router = new NodeRouter({ port });
+async function startServer(port?: number, received: any[] = []) {
+  const serverPort = port || await portManager.getNextPort();
+  const router = new NodeRouter({ port: serverPort });
 
   router
     .onGet('/ping', async (ctx) => { ctx.response = 'pong'; })
@@ -17,14 +19,13 @@ async function startServer(port = 8101, received: any[] = []) {
   router.onValidateBroadcast('/topic/:name', () => true);
 
   await router.listen();
-  return router;
+  return { router, port: serverPort };
 }
 
 describe('neorest client ↔ node server (auto strategy: http first, ws upgrade)', () => {
   it('performs GET/POST over initial HTTP and receives broadcasts (upgrade if WS available)', async () => {
-    const port = 8101;
     const receivedOnServer: any[] = [];
-    const server = await startServer(port, receivedOnServer);
+    const { router: server, port } = await startServer(undefined, receivedOnServer);
     let client: Client | null = null;
 
     try {

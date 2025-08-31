@@ -48,6 +48,14 @@ export class ClientConnection extends ConnectionBase {
     // Initialize with default secret
     this.setHeader('secret', newConnectionSecret());
 
+    // Set connection secret on auto strategy if available
+    if ((strategy as any).setConnectionSecret) {
+      const secret = this.getSecret();
+      if (secret) {
+        (strategy as any).setConnectionSecret(secret);
+      }
+    }
+
     // On connect, send the secret to the server so it can register this connection
     this.onClientConnect = () => {
       const secret = this.getSecret();
@@ -86,6 +94,15 @@ export class ClientConnection extends ConnectionBase {
     // Create new strategy
     const type = strategyType || this.getStrategyType();
     const strategy = createStrategy(type, url);
+    
+    // Set connection secret on auto strategy if available
+    if (type === 'auto' && (strategy as any).setConnectionSecret) {
+      const secret = this.getSecret();
+      console.log(`ClientConnection.setUrl: setting secret on auto strategy: ${secret}`);
+      if (secret) {
+        (strategy as any).setConnectionSecret(secret);
+      }
+    }
     
     // Set the new strategy
     this.setStrategy(strategy);
@@ -224,9 +241,16 @@ export class ClientConnection extends ConnectionBase {
       this.subscribedRoutes[route] = callback as (broadcast: BroadcastEvent) => void;
 
       // Wait for connection
+      let waitCount = 0;
       while (true) {
         if (this.isFullyConnected) {
           break;
+        }
+        waitCount++;
+        if (waitCount > 50) { // 5 seconds timeout
+          console.error(`ClientConnection: Timeout waiting for connection to subscribe to ${route}`);
+          reject(new Error(`Connection timeout for subscription to ${route}`));
+          return;
         }
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
@@ -343,6 +367,15 @@ export class ClientConnection extends ConnectionBase {
       // Create new strategy with same URL
       const strategyType = this.getStrategyType();
       const strategy = createStrategy(strategyType, this.url);
+      
+      // Set connection secret on auto strategy if available
+      if (strategyType === 'auto' && (strategy as any).setConnectionSecret) {
+        const secret = this.getSecret();
+        console.log(`ClientConnection.reconnect: setting secret on auto strategy: ${secret}`);
+        if (secret) {
+          (strategy as any).setConnectionSecret(secret);
+        }
+      }
       
       // Set new strategy and connect
       this.setStrategy(strategy);

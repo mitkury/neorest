@@ -15,6 +15,7 @@ export class AutoStrategy implements ClientStrategy {
 
   private authData: Record<string, string> = {};
   private connectionInfo: ConnectionInfo;
+  private connectionSecret: string | null = null;
 
   constructor(private baseUrl: string) {
     this.http = new HttpStrategy(this.ensureHttpUrl(baseUrl));
@@ -41,8 +42,10 @@ export class AutoStrategy implements ClientStrategy {
     // but ensure the consumer's onOpen is invoked at least once
     if (this.openCallback) this.openCallback();
 
-    // 2) In background, try WS upgrade
-    void this.tryUpgradeToWebSocket();
+    // 2) Wait a bit for the connection to be fully established, then try WS upgrade
+    setTimeout(() => {
+      void this.tryUpgradeToWebSocket();
+    }, 100);
   }
 
   disconnect(): void {
@@ -97,6 +100,14 @@ export class AutoStrategy implements ClientStrategy {
     if (this.ws) this.ws.setAuthentication(authData);
   }
 
+  setConnectionSecret(secret: string): void {
+    this.connectionSecret = secret;
+    // Also set it on the HTTP strategy if it has the method
+    if ((this.http as any).setConnectionSecret) {
+      (this.http as any).setConnectionSecret(secret);
+    }
+  }
+
   getConnectionInfo(): ConnectionInfo {
     return {
       ...this.connectionInfo,
@@ -109,7 +120,15 @@ export class AutoStrategy implements ClientStrategy {
   // Internals
   private async tryUpgradeToWebSocket(): Promise<void> {
     try {
-      const wsUrl = this.ensureWsUrl(this.baseUrl);
+      let wsUrl = this.ensureWsUrl(this.baseUrl);
+      
+      // Add connection secret to WebSocket URL if available
+      if (this.connectionSecret) {
+        const url = new URL(wsUrl);
+        url.searchParams.set('secret', this.connectionSecret);
+        wsUrl = url.toString();
+      }
+      
       const ws = new WebSocketStrategy(wsUrl);
       // propagate auth if set
       if (Object.keys(this.authData).length > 0) ws.setAuthentication(this.authData);

@@ -63,6 +63,26 @@ export class ServerConnection extends ConnectionBase {
   }
 
   /**
+   * Get the current communication strategy
+   * @returns The current strategy
+   */
+  public getStrategy(): CommunicationStrategy {
+    return (this as any).strategy;
+  }
+
+  /**
+   * Update the communication strategy (for reconnection)
+   * @param newStrategy - The new communication strategy
+   */
+  public async updateStrategy(newStrategy: CommunicationStrategy): Promise<void> {
+    // Close the old strategy
+    this.close();
+    
+    // Update to the new strategy (this will automatically connect)
+    await this.setStrategy(newStrategy);
+  }
+
+  /**
    * Send a message to a route
    * @param route - The route to send to
    * @param verb - The HTTP verb to use

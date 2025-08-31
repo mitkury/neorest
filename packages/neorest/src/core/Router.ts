@@ -211,17 +211,50 @@ export class Router {
    * @param reconnectSecret - Optional secret for reconnection
    * @returns The new connection
    */
-  public handleNewConnection(
+  public async handleNewConnection(
     strategy: CommunicationStrategy, 
     reconnectSecret: ConnectionSecret | null = null
-  ): ServerConnection {
+  ): Promise<ServerConnection> {
     if (reconnectSecret && this.connections[reconnectSecret]) {
-      // Reconnect using existing connection
-      // This is a placeholder - actual implementation would depend on strategy
-      throw new Error("Reconnection not implemented yet");
+      // For WebSocket upgrades, create a new connection but preserve the secret
+      
+      // Remove the old connection
+      delete this.connections[reconnectSecret];
+      
+      // Create a new connection with the WebSocket strategy
+      const conn = new ServerConnection(strategy, (data) => {
+        if (data[0] === "secret") {
+          const secret = data[1] as ConnectionSecret;
+          this.connections[secret] = conn;
+        }
+      });
+      
+      // Set the secret on the new connection immediately
+      conn.setHeader('secret', reconnectSecret);
+      this.connections[reconnectSecret] = conn;
+
+      conn.onRouteMessage = async (msgId: MsgID, msg: MsgRoute) => {
+        return await this.handleRouteMessage(conn.getSecret(), msgId, msg);
+      };
+
+      conn.onSubscribeToRoute = (route) => {
+        const secret = conn.getSecret();
+        console.log(`Router: Subscribing to route ${route} with secret: ${secret}`);
+        this.subscribeConnectionToRoute(route, secret);
+      };
+
+      conn.onUnsubscribeFromRoute = (route) => {
+        this.unsubscribeConnectionFromRoute(route, conn.getSecret());
+      };
+
+      conn.onClose = () => {
+        this.removeConnection(conn.getSecret());
+      };
+      
+      return conn;
     } else {
       if (reconnectSecret) {
-        console.error("Reconnect secret provided, but no connection found");
+        console.error(`Reconnect secret provided (${reconnectSecret}), but no connection found. Available: ${Object.keys(this.connections).join(', ')}`);
       }
 
       const conn = new ServerConnection(strategy, (data) => {
@@ -236,7 +269,9 @@ export class Router {
       };
 
       conn.onSubscribeToRoute = (route) => {
-        this.subscribeConnectionToRoute(route, conn.getSecret());
+        const secret = conn.getSecret();
+        console.log(`Router: Subscribing to route ${route} with secret: ${secret}`);
+        this.subscribeConnectionToRoute(route, secret);
       };
 
       conn.onUnsubscribeFromRoute = (route) => {

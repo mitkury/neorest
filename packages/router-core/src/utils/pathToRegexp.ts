@@ -1,4 +1,4 @@
-// Copy of https://github.com/pillarjs/path-to-regex
+// Copy of https://github.com/pillarjs/path-to-regexp
 // v6.2.1
 
 /**

@@ -928,6 +928,7 @@ var AutoStrategy = class {
     this.closeCallback = null;
     this.openCallback = null;
     this.authData = {};
+    this.connectionSecret = null;
     this.http = new HttpStrategy(this.ensureHttpUrl(baseUrl));
     this.connectionInfo = {
       id: Math.random().toString(36).substring(2, 15),
@@ -944,7 +945,9 @@ var AutoStrategy = class {
     if (this.closeCallback) this.http.onClose(() => this.handleUnderlyingClose("http"));
     if (this.openCallback) this.http.onOpen(() => this.handleUnderlyingOpen("http"));
     if (this.openCallback) this.openCallback();
-    void this.tryUpgradeToWebSocket();
+    setTimeout(() => {
+      void this.tryUpgradeToWebSocket();
+    }, 100);
   }
   disconnect() {
     try {
@@ -992,6 +995,12 @@ var AutoStrategy = class {
     this.http.setAuthentication(authData);
     if (this.ws) this.ws.setAuthentication(authData);
   }
+  setConnectionSecret(secret) {
+    this.connectionSecret = secret;
+    if (this.http.setConnectionSecret) {
+      this.http.setConnectionSecret(secret);
+    }
+  }
   getConnectionInfo() {
     return {
       ...this.connectionInfo,
@@ -1003,7 +1012,12 @@ var AutoStrategy = class {
   // Internals
   async tryUpgradeToWebSocket() {
     try {
-      const wsUrl = this.ensureWsUrl(this.baseUrl);
+      let wsUrl = this.ensureWsUrl(this.baseUrl);
+      if (this.connectionSecret) {
+        const url = new URL(wsUrl);
+        url.searchParams.set("secret", this.connectionSecret);
+        wsUrl = url.toString();
+      }
       const ws = new WebSocketStrategy(wsUrl);
       if (Object.keys(this.authData).length > 0) ws.setAuthentication(this.authData);
       if (this.messageCallback) ws.onMessage(this.messageCallback);
@@ -1071,6 +1085,12 @@ var ClientConnection = class extends ConnectionBase {
     this.onClientConnect = () => {
     };
     this.setHeader("secret", newConnectionSecret());
+    if (strategy.setConnectionSecret) {
+      const secret = this.getSecret();
+      if (secret) {
+        strategy.setConnectionSecret(secret);
+      }
+    }
     this.onClientConnect = () => {
       const secret = this.getSecret();
       if (secret) {
@@ -1097,6 +1117,13 @@ var ClientConnection = class extends ConnectionBase {
     this.close();
     const type = strategyType || this.getStrategyType();
     const strategy = createStrategy(type, url);
+    if (type === "auto" && strategy.setConnectionSecret) {
+      const secret = this.getSecret();
+      console.log(`ClientConnection.setUrl: setting secret on auto strategy: ${secret}`);
+      if (secret) {
+        strategy.setConnectionSecret(secret);
+      }
+    }
     this.setStrategy(strategy);
     await this.connect();
   }
@@ -1193,9 +1220,16 @@ var ClientConnection = class extends ConnectionBase {
         return;
       }
       this.subscribedRoutes[route] = callback;
+      let waitCount = 0;
       while (true) {
         if (this.isFullyConnected) {
           break;
+        }
+        waitCount++;
+        if (waitCount > 50) {
+          console.error(`ClientConnection: Timeout waiting for connection to subscribe to ${route}`);
+          reject(new Error(`Connection timeout for subscription to ${route}`));
+          return;
         }
         await new Promise((resolve2) => setTimeout(resolve2, 100));
       }
@@ -1290,6 +1324,13 @@ var ClientConnection = class extends ConnectionBase {
     try {
       const strategyType = this.getStrategyType();
       const strategy = createStrategy(strategyType, this.url);
+      if (strategyType === "auto" && strategy.setConnectionSecret) {
+        const secret = this.getSecret();
+        console.log(`ClientConnection.reconnect: setting secret on auto strategy: ${secret}`);
+        if (secret) {
+          strategy.setConnectionSecret(secret);
+        }
+      }
       this.setStrategy(strategy);
       await this.connect();
       this.resubscribeToRoutes();

@@ -148,7 +148,7 @@ export class NodeServerAdapter implements ServerAdapter {
     
     // Create strategy and add connection
     const strategy = new WebSocketStrategy(socket as any);
-    this.router.handleNewConnection(strategy as any, reconnectSecret as ConnectionSecret);
+    await this.router.handleNewConnection(strategy as any, reconnectSecret as ConnectionSecret);
   }
 
   /**

@@ -85,6 +85,15 @@ export class WebSocketStrategy implements ServerStrategy {
     this.setupSocketHandlers();
   }
 
+  updateSocket(newSocket: WsServerSocket): void {
+    // Disconnect the old socket
+    try { this.socket.close(); } catch {}
+    
+    // Update to the new socket
+    this.socket = newSocket;
+    this.setupSocketHandlers();
+  }
+
   broadcast(message: MsgWrapper, filter?: (conn: any) => boolean): void {
     if (!filter || filter(this.socket)) {
       this.send(message);
