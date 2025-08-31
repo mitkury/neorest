@@ -16,6 +16,11 @@ export default defineConfig({
   outDir: 'dist',
   target: 'node18',
   platform: 'node',
+  outExtension({ format }) {
+    return {
+      js: format === 'esm' ? '.mjs' : '.cjs',
+    }
+  },
   esbuildOptions(options) {
     // Remove banner to avoid warnings
   },

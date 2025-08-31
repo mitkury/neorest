@@ -1,0 +1,26 @@
+{
+  "name": "@neorest/playground-simplest",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,green \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "tsx watch server.ts",
+    "dev:client": "serve public -p 3001",
+    "build": "tsc server.ts --outDir dist",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "neorest": "file:../../neorest"
+  },
+  "overrides": {
+    "neorest": "file:../../neorest"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "concurrently": "^8.2.2",
+    "serve": "^14.2.1",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}

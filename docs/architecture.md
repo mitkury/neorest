@@ -11,7 +11,7 @@ This document describes the architecture of Neorest.
   - **src/browser/**: Browser-specific code (if needed)
   - **src/**: Universal client (Browser/Node/Deno) and client strategies (WebSocket, HTTP long‑polling)
 - **packages/tests**: Unit tests validating HTTP and WebSocket flows
-- **packages/examples**: Example applications
+- **packages/playground**: Example applications and demos
 
 ### Core Package (`neorest/core`)
 

@@ -35,7 +35,7 @@ Neorest works across multiple runtimes with a single package:
 
 - `packages/neorest`: Main package with multi-runtime support
 - `packages/tests`: Unit tests (Vitest)
-- `packages/examples`: Example applications
+- `packages/playground`: Example applications and demos
 - `packages/e2e-tests`: E2E tests (Playwright, planned)
 
 ## Usage
