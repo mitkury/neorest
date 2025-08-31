@@ -15,5 +15,6 @@ export default defineConfig({
     watch: false,
     pool: 'threads',
     testTimeout: 30000,
+    maxConcurrency: 1,
   },
 });
