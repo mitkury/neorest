@@ -51,7 +51,7 @@ This keeps concerns separate and avoids content‑type heuristics or collisions.
 
 
 ## Router API changes
-Add a new method to `@neorest/router-core`:
+Add a new method to `neorest/core`:
 
 ```ts
 // Proposed API
@@ -118,8 +118,8 @@ HTTP:
 - Opt‑out: add `disableHttpRoutes?: boolean` on `NodeRouter`/adapter; default is enabled.
 
 ## Implementation plan
-1. `@neorest/router-core`: add `executeHttpRoute` and synthetic sender utility.
-2. `@neorest/router-node`: move transport to `/.neorest`; implement HTTP route dispatch; remove legacy root transport paths.
+1. `neorest/core`: add `executeHttpRoute` and synthetic sender utility.
+2. `neorest/node`: move transport to `/.neorest`; implement HTTP route dispatch; remove legacy root transport paths.
 3. `neorest` client: switch to `/.neorest` endpoints.
 4. Tests: add unit tests for plain HTTP GET/POST/DELETE, plus transport at `/.neorest`.
 5. Docs: update architecture to reflect HTTP routing and transport path.

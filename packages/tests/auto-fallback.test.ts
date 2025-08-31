@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { NodeRouter } from '@neorest/router-node';
+import { NodeRouter } from 'neorest/node';
 import { Client } from 'neorest';
 
 async function startServerHttpOnly(port = 8102, received: any[] = []) {

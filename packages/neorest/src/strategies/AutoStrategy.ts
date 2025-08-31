@@ -1,4 +1,4 @@
-import { ClientStrategy, MsgWrapper, ConnectionInfo } from '@neorest/core';
+import { ClientStrategy, MsgWrapper, ConnectionInfo } from '../core';
 import { WebSocketStrategy } from './WebSocketStrategy';
 import { HttpStrategy } from './HttpStrategy';
 

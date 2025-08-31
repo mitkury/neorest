@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { NodeRouter } from '@neorest/router-node';
-import { withAuth } from '@neorest/router-core';
+import { NodeRouter } from 'neorest/node';
+import { withAuth } from 'neorest/core';
 import { Client } from 'neorest';
 
 async function startServer(port = 8103) {

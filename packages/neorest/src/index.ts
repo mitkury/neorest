@@ -18,4 +18,8 @@ export type {
   BroadcastEvent,
   ConnectionOptions,
   ReconnectOptions,
-} from '@neorest/core';
+  MsgID,
+  MsgType,
+  MsgWrapper,
+  ConnectionSecret,
+} from './core';

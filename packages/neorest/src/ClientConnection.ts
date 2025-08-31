@@ -1,5 +1,5 @@
+import { ConnectionBase } from './core/ConnectionBase';
 import { 
-  ConnectionBase, 
   ClientStrategy, 
   CommunicationStrategy,
   BroadcastEvent,
@@ -18,7 +18,7 @@ import {
   Payload,
   newConnectionSecret,
   msg_ConnDataSet
-} from '@neorest/core';
+} from './core';
 import { createStrategy } from './strategies/index';
 
 /**
