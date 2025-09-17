@@ -10,6 +10,7 @@ export class WebSocketStrategy implements ClientStrategy {
   private openCallback: (() => void) | null = null;
   private connectionInfo: ConnectionInfo;
   private authData: Record<string, string> = {};
+  private isNode: boolean = false;
 
   /**
    * Constructor
@@ -38,8 +39,12 @@ export class WebSocketStrategy implements ClientStrategy {
       connectionUrl = urlObj.toString();
     }
     
-    // Create WebSocket
-    this.socket = new WebSocket(connectionUrl);
+    // Create WebSocket in browser or Node
+    let ctor: any = (globalThis as any).WebSocket;
+    if (!ctor) {
+      try { ctor = require('ws'); this.isNode = true; } catch {}
+    }
+    this.socket = new ctor(connectionUrl) as any;
     this.connectionInfo.status = 'connecting';
     
     // Set up handlers
@@ -54,19 +59,26 @@ export class WebSocketStrategy implements ClientStrategy {
       const onOpenHandler = () => {
         this.connectionInfo.status = 'connected';
         resolve();
-        // Clean up the temporary handler
-        if (this.socket) this.socket.removeEventListener('open', onOpenHandler);
+        if (this.socket) {
+          if (this.isNode) (this.socket as any).off?.('open', onOpenHandler); else (this.socket as any).removeEventListener?.('open', onOpenHandler);
+        }
       };
       
-      const onErrorHandler = (event: Event) => {
+      const onErrorHandler = () => {
         this.connectionInfo.status = 'disconnected';
         reject(new Error("WebSocket connection failed"));
-        // Clean up the temporary handler
-        if (this.socket) this.socket.removeEventListener('error', onErrorHandler);
+        if (this.socket) {
+          if (this.isNode) (this.socket as any).off?.('error', onErrorHandler); else (this.socket as any).removeEventListener?.('error', onErrorHandler);
+        }
       };
       
-      this.socket.addEventListener('open', onOpenHandler);
-      this.socket.addEventListener('error', onErrorHandler);
+      if (this.isNode) {
+        (this.socket as any).on('open', onOpenHandler);
+        (this.socket as any).on('error', onErrorHandler);
+      } else {
+        (this.socket as any).addEventListener('open', onOpenHandler);
+        (this.socket as any).addEventListener('error', onErrorHandler);
+      }
     });
   }
 
@@ -91,7 +103,8 @@ export class WebSocketStrategy implements ClientStrategy {
    * @param message - The message to send
    */
   send(message: MsgWrapper): void {
-    if (this.socket?.readyState === WebSocket.OPEN) {
+    const ready = this.isNode ? ((this.socket as any)?.readyState === 1) : (this.socket?.readyState === WebSocket.OPEN);
+    if (ready) {
       try {
         this.socket.send(JSON.stringify(message));
       } catch (error) {
@@ -110,21 +123,19 @@ export class WebSocketStrategy implements ClientStrategy {
   onMessage(callback: (message: MsgWrapper) => void): void {
     this.messageCallback = callback;
     if (this.socket) {
-      // Remove any existing listener
-      const oldListener = this.socket.onmessage;
-      if (oldListener) {
-        this.socket.removeEventListener('message', oldListener as any);
+      if (this.isNode) {
+        const handler = (data: any) => {
+          try { const text = Buffer.isBuffer(data) ? data.toString() : String(data); const parsed = JSON.parse(text) as MsgWrapper; this.messageCallback!(parsed); } catch (e) { console.error("Error parsing message:", e); }
+        };
+        (this.socket as any).off?.('message', (this as any)._msgHandler);
+        (this as any)._msgHandler = handler;
+        (this.socket as any).on('message', handler);
+      } else {
+        const handler = (event: MessageEvent) => {
+          try { const data = JSON.parse((event.data as any) as string) as MsgWrapper; this.messageCallback!(data); } catch (e) { console.error("Error parsing message:", e); }
+        };
+        (this.socket as any).addEventListener('message', handler);
       }
-      
-      // Add new listener
-      this.socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data as string) as MsgWrapper;
-          this.messageCallback!(data);
-        } catch (error) {
-          console.error("Error parsing message:", error);
-        }
-      };
     }
   }
 
@@ -135,17 +146,9 @@ export class WebSocketStrategy implements ClientStrategy {
   onClose(callback: () => void): void {
     this.closeCallback = callback;
     if (this.socket) {
-      // Remove any existing listener
-      const oldListener = this.socket.onclose;
-      if (oldListener) {
-        this.socket.removeEventListener('close', oldListener as any);
-      }
-      
-      // Add new listener
-      this.socket.onclose = () => {
-        this.connectionInfo.status = 'disconnected';
-        this.closeCallback!();
-      };
+      const handler = () => { this.connectionInfo.status = 'disconnected'; this.closeCallback!(); };
+      if (this.isNode) { (this.socket as any).off?.('close', (this as any)._closeHandler); (this as any)._closeHandler = handler; (this.socket as any).on('close', handler); }
+      else { (this.socket as any).addEventListener('close', handler); }
     }
   }
 
@@ -156,17 +159,9 @@ export class WebSocketStrategy implements ClientStrategy {
   onOpen(callback: () => void): void {
     this.openCallback = callback;
     if (this.socket) {
-      // Remove any existing listener
-      const oldListener = this.socket.onopen;
-      if (oldListener) {
-        this.socket.removeEventListener('open', oldListener as any);
-      }
-      
-      // Add new listener
-      this.socket.onopen = () => {
-        this.connectionInfo.status = 'connected';
-        this.openCallback!();
-      };
+      const handler = () => { this.connectionInfo.status = 'connected'; this.openCallback!(); };
+      if (this.isNode) { (this.socket as any).off?.('open', (this as any)._openHandler); (this as any)._openHandler = handler; (this.socket as any).on('open', handler); }
+      else { (this.socket as any).addEventListener('open', handler); }
     }
   }
 
@@ -175,7 +170,7 @@ export class WebSocketStrategy implements ClientStrategy {
    * @returns True if connected, false otherwise
    */
   isConnected(): boolean {
-    return this.socket?.readyState === WebSocket.OPEN;
+    return this.isNode ? ((this.socket as any)?.readyState === 1) : (this.socket?.readyState === WebSocket.OPEN);
   }
 
   /**
@@ -199,38 +194,8 @@ export class WebSocketStrategy implements ClientStrategy {
    */
   private setupSocketHandlers(): void {
     if (!this.socket) return;
-    
-    // Set up message handler
-    if (this.messageCallback) {
-      this.socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data as string) as MsgWrapper;
-          this.messageCallback!(data);
-        } catch (error) {
-          console.error("Error parsing message:", error);
-        }
-      };
-    }
-    
-    // Set up close handler
-    if (this.closeCallback) {
-      this.socket.onclose = () => {
-        this.connectionInfo.status = 'disconnected';
-        this.closeCallback!();
-      };
-    }
-    
-    // Set up open handler
-    if (this.openCallback) {
-      this.socket.onopen = () => {
-        this.connectionInfo.status = 'connected';
-        this.openCallback!();
-      };
-    }
-    
-    // Set up error handler
-    this.socket.onerror = (error) => {
-      console.error("WebSocket error:", error);
-    };
+    // Error handler
+    if (this.isNode) (this.socket as any).on('error', (e: any) => console.error('WebSocket error:', e));
+    else (this.socket as any).addEventListener('error', (e: any) => console.error('WebSocket error:', e));
   }
 }
