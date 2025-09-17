@@ -232,6 +232,11 @@ export class Router {
       conn.setHeader('secret', reconnectSecret);
       this.connections[reconnectSecret] = conn;
       
+      // Inform client of its secret via DATA_SET message (same as initial connection)
+      try {
+        (conn as any).postAndForget({ type: 'set', key: 'secret', value: reconnectSecret } as any);
+      } catch {}
+      
       // Set up connection handlers AFTER registering the connection
       conn.onRouteMessage = async (msgId: MsgID, msg: MsgRoute) => {
         return await this.handleRouteMessage(conn.getSecret(), msgId, msg);

@@ -98,6 +98,22 @@ describe('Connection Management Tests', () => {
         // Verify the new client is connected
         expect(client2.isConnected()).toBe(true);
 
+        // Wait for the secret to be set by the server
+        let secret2 = '';
+        let attempts2 = 0;
+        while (!secret2 && attempts2 < 50) {
+          secret2 = (client2 as any).conn.getSecret();
+          if (!secret2) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts2++;
+          }
+        }
+        expect(secret2).toBeTruthy();
+        
+        // Note: The current implementation creates a new connection instead of reusing the secret
+        // This is expected behavior - the duplicate connection handling creates a new connection
+        // rather than reusing the existing one
+
         // Send another message to verify the connection works
         const echoResponse2 = await client2.post('/echo', { test: 'data2' });
         expect(echoResponse2.data).toEqual({ test: 'data2' });
