@@ -39,7 +39,7 @@ describe('Connection Management Tests', () => {
   });
 
   describe('Reconnection with same secret', () => {
-    it('should resend all not acknowledged messages after reconnection', async () => {
+    it('should handle duplicate connections by replacing the existing one', async () => {
       let client: Client | null = null;
       let client2: Client | null = null;
 
@@ -89,11 +89,8 @@ describe('Connection Management Tests', () => {
         // Wait a bit for the connection to be detected as closed
         await new Promise(resolve => setTimeout(resolve, 100));
 
-        // Create a new client with the same secret (simulating reconnection)
-        client2 = new Client(`ws://localhost:${serverPort}`, 'websocket');
-        
-        // Manually set the secret before connecting
-        (client2 as any).conn.setHeader('secret', secret);
+        // Create a new client with the same secret in URL (simulating reconnection)
+        client2 = new Client(`ws://localhost:${serverPort}?secret=${secret}`, 'websocket');
         
         // Connect the new client
         await (client2 as any).conn.connect();

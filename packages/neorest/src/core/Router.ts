@@ -216,12 +216,11 @@ export class Router {
     reconnectSecret: ConnectionSecret | null = null
   ): Promise<ServerConnection> {
     if (reconnectSecret && this.connections[reconnectSecret]) {
-      // For WebSocket upgrades, create a new connection but preserve the secret
+      // Handle duplicate connection - disconnect the existing one
+      const existingConn = this.connections[reconnectSecret];
+      console.log(`Replacing existing connection for secret: ${reconnectSecret}`);
       
-      // Remove the old connection
-      delete this.connections[reconnectSecret];
-      
-      // Create a new connection with the WebSocket strategy
+      // Create a new connection with the same secret
       const conn = new ServerConnection(strategy, (data) => {
         if (data[0] === "secret") {
           const secret = data[1] as ConnectionSecret;
@@ -229,10 +228,11 @@ export class Router {
         }
       });
       
-      // Set the secret on the new connection immediately
+      // Set the secret on the new connection and register it FIRST
       conn.setHeader('secret', reconnectSecret);
       this.connections[reconnectSecret] = conn;
-
+      
+      // Set up connection handlers AFTER registering the connection
       conn.onRouteMessage = async (msgId: MsgID, msg: MsgRoute) => {
         return await this.handleRouteMessage(conn.getSecret(), msgId, msg);
       };
@@ -250,6 +250,17 @@ export class Router {
       conn.onClose = () => {
         this.removeConnection(conn.getSecret());
       };
+      
+      // Now close the existing connection
+      // Temporarily disable the onClose handler to prevent it from removing the new connection
+      const originalOnClose = existingConn.onClose;
+      existingConn.onClose = () => {
+        // Don't remove the connection as we've already replaced it
+        console.log(`Old connection closed for secret: ${reconnectSecret}`);
+      };
+      existingConn.close();
+      // Restore the original handler
+      existingConn.onClose = originalOnClose;
       
       return conn;
     } else {
