@@ -234,7 +234,7 @@ export class Router {
       
       // Inform client of its secret via DATA_SET message (same as initial connection)
       try {
-        (conn as any).postAndForget({ type: 'set', key: 'secret', value: reconnectSecret } as any);
+        (conn as any).postAndExpectResponse({ type: 'set', key: 'secret', value: reconnectSecret } as any);
       } catch {}
       
       // Set up connection handlers AFTER registering the connection
@@ -282,7 +282,7 @@ export class Router {
 
       // Inform client of its secret via DATA_SET message
       try {
-        (conn as any).postAndForget({ type: 'set', key: 'secret', value: secret } as any);
+        (conn as any).postAndExpectResponse({ type: 'set', key: 'secret', value: secret } as any);
       } catch {}
 
       conn.onRouteMessage = async (msgId: MsgID, msg: MsgRoute) => {
