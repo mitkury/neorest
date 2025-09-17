@@ -145,3 +145,26 @@ describe('security: secret format/entropy basics', () => {
   });
 });
 
+describe('security: client cannot set/override secret', () => {
+  let server: any;
+  const port = 8124;
+  beforeAll(async () => { server = await startServer(port); });
+  afterAll(async () => { await server?.close(); });
+
+  it('DATA_SET secret from client returns 403', async () => {
+    const client = new Client(`http://localhost:${port}`, 'http');
+    await (client as any).conn.connect();
+
+    const { msg_ConnDataSet } = await import('neorest/core');
+
+    const resp = await new Promise<any>((resolve) => {
+      ((client as any).conn).post(msg_ConnDataSet('secret', 'evil-secret'), (r: any) => resolve(r));
+    });
+
+    expect(resp.status).toBe(403);
+    expect(String(resp.error || '')).toContain('Secret is server-managed');
+
+    (client as any).close?.();
+  });
+});
+
