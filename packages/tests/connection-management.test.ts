@@ -39,7 +39,7 @@ describe('Connection Management Tests', () => {
   });
 
   describe('Reconnection with same secret', () => {
-    it('should handle duplicate connections by replacing the existing one', async () => {
+    it('should reconnect with the same secret and maintain connection state', async () => {
       let client: Client | null = null;
       let client2: Client | null = null;
 
@@ -90,6 +90,7 @@ describe('Connection Management Tests', () => {
         await new Promise(resolve => setTimeout(resolve, 100));
 
         // Create a new client with the same secret in URL (simulating reconnection)
+        // This should trigger the duplicate connection handling
         client2 = new Client(`ws://localhost:${serverPort}?secret=${secret}`, 'websocket');
         
         // Connect the new client
@@ -110,9 +111,11 @@ describe('Connection Management Tests', () => {
         }
         expect(secret2).toBeTruthy();
         
-        // Note: The current implementation creates a new connection instead of reusing the secret
-        // This is expected behavior - the duplicate connection handling creates a new connection
-        // rather than reusing the existing one
+        // CRITICAL: The secrets should be equal for true reconnection
+        expect(secret2).toBe(secret);
+        console.log(`Original secret: ${secret}`);
+        console.log(`Reconnected secret: ${secret2}`);
+        console.log(`Secrets match: ${secret2 === secret}`);
 
         // Send another message to verify the connection works
         const echoResponse2 = await client2.post('/echo', { test: 'data2' });
@@ -319,8 +322,8 @@ describe('Connection Management Tests', () => {
         // Close the client without proper cleanup
         (client as any).conn.close();
 
-        // Wait for server to detect the disconnection
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Wait for server to detect the disconnection and grace period to expire
+        await new Promise(resolve => setTimeout(resolve, 1200));
 
         // The connection should be removed from server
         expect(serverConnections[secret]).toBeUndefined();
@@ -377,8 +380,8 @@ describe('Connection Management Tests', () => {
         // Close the connection
         (client as any).conn.close();
 
-        // Wait for cleanup
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Wait for cleanup and grace period to expire
+        await new Promise(resolve => setTimeout(resolve, 1200));
 
         // Verify subscription is removed
         let subscriptionStillExists = false;
@@ -434,7 +437,7 @@ describe('Connection Management Tests', () => {
 
         // Close one connection
         (client1 as any).conn.close();
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, 1200));
 
         // Verify only one connection remains
         expect(serverConnections[secret1]).toBeUndefined();
@@ -446,7 +449,7 @@ describe('Connection Management Tests', () => {
 
         // Close the second connection
         (client2 as any).conn.close();
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, 1200));
 
         // Verify no connections remain
         expect(serverConnections[secret2]).toBeUndefined();

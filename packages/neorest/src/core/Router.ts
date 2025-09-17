@@ -41,6 +41,11 @@ export class Router {
    * All the active connections that the router has
    */
   protected connections: Record<ConnectionSecret, ServerConnection> = {};
+
+  /**
+   * Connections that are being removed but have a grace period for reconnection
+   */
+  private pendingRemovals: Record<ConnectionSecret, NodeJS.Timeout> = {};
   
   /**
    * Routes that the router uses to handle incoming messages
@@ -216,10 +221,16 @@ export class Router {
     strategy: CommunicationStrategy, 
     reconnectSecret: ConnectionSecret | null = null
   ): Promise<ServerConnection> {
-    if (reconnectSecret && this.connections[reconnectSecret]) {
+    if (reconnectSecret && (this.connections[reconnectSecret] || this.pendingRemovals[reconnectSecret])) {
       // Handle duplicate connection - disconnect the existing one
       const existingConn = this.connections[reconnectSecret];
       console.log(`Replacing existing connection for secret: ${reconnectSecret}`);
+      
+      // If there's a pending removal, cancel it
+      if (this.pendingRemovals[reconnectSecret]) {
+        clearTimeout(this.pendingRemovals[reconnectSecret]);
+        delete this.pendingRemovals[reconnectSecret];
+      }
       
       // Create a new connection with the same secret
       const conn = new ServerConnection(strategy, (data) => {
@@ -254,19 +265,16 @@ export class Router {
       };
 
       conn.onClose = () => {
-        this.removeConnection(conn.getSecret());
+        this.scheduleConnectionRemoval(conn.getSecret());
       };
       
+      // Clean up the old connection's subscriptions immediately
+      for (const route of this.outRoutes) {
+        route.listeners = route.listeners.filter((l) => l.conn !== reconnectSecret);
+      }
+      
       // Now close the existing connection
-      // Temporarily disable the onClose handler to prevent it from removing the new connection
-      const originalOnClose = existingConn.onClose;
-      existingConn.onClose = () => {
-        // Don't remove the connection as we've already replaced it
-        console.log(`Old connection closed for secret: ${reconnectSecret}`);
-      };
       existingConn.close();
-      // Restore the original handler
-      existingConn.onClose = originalOnClose;
       
       return conn;
     } else {
@@ -301,7 +309,7 @@ export class Router {
       };
 
       conn.onClose = () => {
-        this.removeConnection(conn.getSecret());
+        this.scheduleConnectionRemoval(conn.getSecret());
       };
       
       return conn;
@@ -598,11 +606,35 @@ export class Router {
    * @param connSecret - The connection secret
    */
   private removeConnection(connSecret: ConnectionSecret): void {
+    // Clear any pending removal for this connection
+    if (this.pendingRemovals[connSecret]) {
+      clearTimeout(this.pendingRemovals[connSecret]);
+      delete this.pendingRemovals[connSecret];
+    }
+
     delete this.connections[connSecret];
 
     for (const route of this.outRoutes) {
       route.listeners = route.listeners.filter((l) => l.conn !== connSecret);
     }
+  }
+
+  /**
+   * Schedule a connection for removal with a grace period for reconnection
+   * @param connSecret - The connection secret
+   * @param gracePeriodMs - Grace period in milliseconds (default: 1000ms)
+   */
+  private scheduleConnectionRemoval(connSecret: ConnectionSecret, gracePeriodMs: number = 1000): void {
+    // Clear any existing pending removal
+    if (this.pendingRemovals[connSecret]) {
+      clearTimeout(this.pendingRemovals[connSecret]);
+    }
+
+    // Schedule removal after grace period
+    this.pendingRemovals[connSecret] = setTimeout(() => {
+      this.removeConnection(connSecret);
+      delete this.pendingRemovals[connSecret];
+    }, gracePeriodMs);
   }
 
   /**
