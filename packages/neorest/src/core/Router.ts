@@ -257,12 +257,17 @@ export class Router {
         console.error(`Reconnect secret provided (${reconnectSecret}), but no connection found. Available: ${Object.keys(this.connections).join(', ')}`);
       }
 
-      const conn = new ServerConnection(strategy, (data) => {
-        if (data[0] === "secret") {
-          const secret = data[1] as ConnectionSecret;
-          this.connections[secret] = conn;
-        }
-      });
+      const conn = new ServerConnection(strategy);
+
+      // Generate and assign server-issued secret; register immediately
+      const secret = newConnectionSecret();
+      conn.setHeader('secret', secret);
+      this.connections[secret] = conn;
+
+      // Inform client of its secret via DATA_SET message
+      try {
+        (conn as any).postAndForget({ type: 'set', key: 'secret', value: secret } as any);
+      } catch {}
 
       conn.onRouteMessage = async (msgId: MsgID, msg: MsgRoute) => {
         return await this.handleRouteMessage(conn.getSecret(), msgId, msg);

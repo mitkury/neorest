@@ -45,24 +45,8 @@ export class ClientConnection extends ConnectionBase {
   constructor(strategy: CommunicationStrategy, options?: ConnectionOptions) {
     super(strategy);
     
-    // Initialize with default secret
-    this.setHeader('secret', newConnectionSecret());
-
-    // Set connection secret on auto strategy if available
-    if ((strategy as any).setConnectionSecret) {
-      const secret = this.getSecret();
-      if (secret) {
-        (strategy as any).setConnectionSecret(secret);
-      }
-    }
-
-    // On connect, send the secret to the server so it can register this connection
-    this.onClientConnect = () => {
-      const secret = this.getSecret();
-      if (secret) {
-        this.postAndForget(msg_ConnDataSet('secret', secret));
-      }
-    };
+    // Do not pre-generate a secret; wait for server-issued secret via DATA_SET
+    this.onClientConnect = () => {};
     
     // Set up reconnect options
     this.reconnectOptions = {
@@ -95,14 +79,7 @@ export class ClientConnection extends ConnectionBase {
     const type = strategyType || this.getStrategyType();
     const strategy = createStrategy(type, url);
     
-    // Set connection secret on auto strategy if available
-    if (type === 'auto' && (strategy as any).setConnectionSecret) {
-      const secret = this.getSecret();
-      console.log(`ClientConnection.setUrl: setting secret on auto strategy: ${secret}`);
-      if (secret) {
-        (strategy as any).setConnectionSecret(secret);
-      }
-    }
+    // Secret will be propagated once received from server
     
     // Set the new strategy
     this.setStrategy(strategy);
@@ -338,6 +315,21 @@ export class ClientConnection extends ConnectionBase {
       
       return new_MsgResponseOK(_, "ok");
     });
+
+    // Intercept DATA_SET from server to capture and propagate secret
+    this.messageHandlers['set'] = (id: MsgID, msg: any) => {
+      const k = msg.key;
+      const v = msg.value;
+      (this as any).headers[k] = v;
+      if (k === 'secret') {
+        const secret = String(v || '');
+        // Propagate to AutoStrategy for WS upgrade URL if supported
+        if ((this.strategy as any).setConnectionSecret) {
+          (this.strategy as any).setConnectionSecret(secret);
+        }
+      }
+      return new_MsgResponseOK(id, [k, v] as any);
+    };
   }
 
   /**
@@ -368,14 +360,7 @@ export class ClientConnection extends ConnectionBase {
       const strategyType = this.getStrategyType();
       const strategy = createStrategy(strategyType, this.url);
       
-      // Set connection secret on auto strategy if available
-      if (strategyType === 'auto' && (strategy as any).setConnectionSecret) {
-        const secret = this.getSecret();
-        console.log(`ClientConnection.reconnect: setting secret on auto strategy: ${secret}`);
-        if (secret) {
-          (strategy as any).setConnectionSecret(secret);
-        }
-      }
+      // Secret will be applied when DATA_SET arrives after reconnect
       
       // Set new strategy and connect
       this.setStrategy(strategy);
