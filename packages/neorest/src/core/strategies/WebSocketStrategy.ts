@@ -1,4 +1,5 @@
-import { ServerStrategy, MsgWrapper } from '../types';
+import { MsgWrapper } from '../types';
+import { ServerStrategy } from '../CommunicationStrategy';
 
 /**
  * WebSocket strategy for server-side connections using standard browser WebSocket API.

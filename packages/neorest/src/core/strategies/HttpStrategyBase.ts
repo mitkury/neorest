@@ -1,4 +1,5 @@
-import { ServerStrategy, MsgWrapper } from '../types';
+import { MsgWrapper } from '../types';
+import { ServerStrategy } from '../CommunicationStrategy';
 
 /**
  * Base HTTP long-polling strategy for server implementations.

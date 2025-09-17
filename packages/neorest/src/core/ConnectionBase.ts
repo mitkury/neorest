@@ -307,7 +307,7 @@ export abstract class ConnectionBase {
    * @param msg - The message to send
    * @returns The message ID
    */
-  protected postAndExpectResponse(msg: MsgType): MsgID {
+  public postAndExpectResponse(msg: MsgType): MsgID {
     if (msg.type === RESPONSE) {
       // We should never expect a response (ack) to a response message.
       // That would result in an infinite loop of responses.

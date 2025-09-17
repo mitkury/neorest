@@ -5,7 +5,6 @@ import type {
   Payload,
   RouteResponse,
   RouteVerb,
-  CommunicationStrategy,
   RouteSubID,
   InRouteLayer,
   OutRouteLayer,
@@ -13,11 +12,13 @@ import type {
   RouterOptions,
   ServerAdapter
 } from './types';
+import type { CommunicationStrategy } from './CommunicationStrategy';
 
 // Re-export types for backward compatibility
 export type { RouterOptions, ServerAdapter, RequestContext };
 import { newConnectionSecret } from './utils/connectionSecret';
 import { ServerConnection } from './ServerConnection';
+import { msg_ConnDataSet } from './types';
 import { 
   Key,
   match,
@@ -234,7 +235,7 @@ export class Router {
       
       // Inform client of its secret via DATA_SET message (same as initial connection)
       try {
-        (conn as any).postAndExpectResponse({ type: 'set', key: 'secret', value: reconnectSecret } as any);
+        conn.postAndExpectResponse(msg_ConnDataSet('secret', reconnectSecret));
       } catch {}
       
       // Set up connection handlers AFTER registering the connection
@@ -282,7 +283,7 @@ export class Router {
 
       // Inform client of its secret via DATA_SET message
       try {
-        (conn as any).postAndExpectResponse({ type: 'set', key: 'secret', value: secret } as any);
+        conn.postAndExpectResponse(msg_ConnDataSet('secret', secret));
       } catch {}
 
       conn.onRouteMessage = async (msgId: MsgID, msg: MsgRoute) => {
@@ -635,7 +636,7 @@ export class Router {
           route: path,
         } as RequestContext;
 
-        const verbAndHandler = route.verbs.find((vh) => vh.verb === (verb as any));
+        const verbAndHandler = route.verbs.find((vh) => vh.verb === verb);
         if (!verbAndHandler) {
           return { status: 405, body: { error: `Method ${verb} not allowed for ${path}` } };
         }
