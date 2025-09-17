@@ -5,6 +5,7 @@ import {
   MsgID,
   MsgRoute,
   ROUTE_MESSAGE,
+  DATA_SET,
   ON_ROUTE,
   OFF_ROUTE,
   new_MsgResponseOK,
@@ -52,6 +53,23 @@ export class ServerConnection extends ConnectionBase {
     this.onDataSet = onDataSet;
     this.registerRouteHandlers();
     this.setupServerCloseTimeout();
+
+    // Lock down secret: ignore/forbid client attempts to set/override 'secret'
+    this.registerHandler(DATA_SET, (msgId, msg) => {
+      const dataMsg = msg as any;
+      const key = dataMsg.key;
+      const value = dataMsg.value;
+
+      if (key === 'secret') {
+        // Do not allow client to set or change the secret on server
+        return new_MsgResponseWithCode(msgId, 403, 'Secret is server-managed');
+      }
+
+      // Allow other headers to be set server-side
+      (this as any).headers[key] = value;
+      this.onDataSet([key, value]);
+      return new_MsgResponseOK(msgId, [key, value] as any);
+    });
   }
 
   /**
