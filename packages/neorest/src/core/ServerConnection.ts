@@ -1,7 +1,5 @@
 import { ConnectionBase } from './ConnectionBase';
 import { 
-  ServerStrategy, 
-  CommunicationStrategy,
   MsgID,
   MsgRoute,
   ROUTE_MESSAGE,
@@ -16,8 +14,10 @@ import {
   MsgUnsubscribeFromRoute,
   Payload,
   RouteVerb,
-  ConnectionSecret
+  ConnectionSecret,
+  MsgDataSet
 } from './types';
+import { CommunicationStrategy, ServerStrategy } from './CommunicationStrategy';
 
 /**
  * Server-side connection implementation
@@ -56,7 +56,7 @@ export class ServerConnection extends ConnectionBase {
 
     // Lock down secret: ignore/forbid client attempts to set/override 'secret'
     this.registerHandler(DATA_SET, (msgId, msg) => {
-      const dataMsg = msg as any;
+      const dataMsg = msg as MsgDataSet;
       const key = dataMsg.key;
       const value = dataMsg.value;
 
@@ -66,9 +66,9 @@ export class ServerConnection extends ConnectionBase {
       }
 
       // Allow other headers to be set server-side
-      (this as any).headers[key] = value;
+      this.setHeader(key, value);
       this.onDataSet([key, value]);
-      return new_MsgResponseOK(msgId, [key, value] as any);
+      return new_MsgResponseOK(msgId, [key, value]);
     });
   }
 

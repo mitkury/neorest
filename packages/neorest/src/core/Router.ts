@@ -5,7 +5,6 @@ import type {
   Payload,
   RouteResponse,
   RouteVerb,
-  CommunicationStrategy,
   RouteSubID,
   InRouteLayer,
   OutRouteLayer,
@@ -13,11 +12,13 @@ import type {
   RouterOptions,
   ServerAdapter
 } from './types';
+import type { CommunicationStrategy } from './CommunicationStrategy';
 
 // Re-export types for backward compatibility
 export type { RouterOptions, ServerAdapter, RequestContext };
 import { newConnectionSecret } from './utils/connectionSecret';
 import { ServerConnection } from './ServerConnection';
+import { msg_ConnDataSet } from './types';
 import { 
   Key,
   match,
@@ -40,6 +41,11 @@ export class Router {
    * All the active connections that the router has
    */
   protected connections: Record<ConnectionSecret, ServerConnection> = {};
+
+  /**
+   * Connections that are being removed but have a grace period for reconnection
+   */
+  private pendingRemovals: Record<ConnectionSecret, NodeJS.Timeout> = {};
   
   /**
    * Routes that the router uses to handle incoming messages
@@ -215,79 +221,82 @@ export class Router {
     strategy: CommunicationStrategy, 
     reconnectSecret: ConnectionSecret | null = null
   ): Promise<ServerConnection> {
-    if (reconnectSecret && this.connections[reconnectSecret]) {
-      // For WebSocket upgrades, create a new connection but preserve the secret
+    if (reconnectSecret && (this.connections[reconnectSecret] || this.pendingRemovals[reconnectSecret])) {
+      // Handle duplicate connection - replace the existing one
+      const existingConn = this.connections[reconnectSecret];
       
-      // Remove the old connection
-      delete this.connections[reconnectSecret];
+      // If there's a pending removal, cancel it
+      if (this.pendingRemovals[reconnectSecret]) {
+        clearTimeout(this.pendingRemovals[reconnectSecret]);
+        delete this.pendingRemovals[reconnectSecret];
+      }
       
-      // Create a new connection with the WebSocket strategy
-      const conn = new ServerConnection(strategy, (data) => {
-        if (data[0] === "secret") {
-          const secret = data[1] as ConnectionSecret;
-          this.connections[secret] = conn;
-        }
-      });
+      // Clean up the old connection's subscriptions immediately
+      this.cleanupConnectionSubscriptions(reconnectSecret);
       
-      // Set the secret on the new connection immediately
-      conn.setHeader('secret', reconnectSecret);
-      this.connections[reconnectSecret] = conn;
-
-      conn.onRouteMessage = async (msgId: MsgID, msg: MsgRoute) => {
-        return await this.handleRouteMessage(conn.getSecret(), msgId, msg);
-      };
-
-      conn.onSubscribeToRoute = (route) => {
-        const secret = conn.getSecret();
-        console.log(`Router: Subscribing to route ${route} with secret: ${secret}`);
-        this.subscribeConnectionToRoute(route, secret);
-      };
-
-      conn.onUnsubscribeFromRoute = (route) => {
-        this.unsubscribeConnectionFromRoute(route, conn.getSecret());
-      };
-
-      conn.onClose = () => {
-        this.removeConnection(conn.getSecret());
-      };
+      // Create and set up the new connection
+      const conn = this.createAndSetupConnection(strategy, reconnectSecret);
+      
+      // Close the existing connection
+      existingConn.close();
       
       return conn;
     } else {
-      if (reconnectSecret) {
-        console.error(`Reconnect secret provided (${reconnectSecret}), but no connection found. Available: ${Object.keys(this.connections).join(', ')}`);
-      }
-
-      const conn = new ServerConnection(strategy);
-
-      // Generate and assign server-issued secret; register immediately
-      const secret = newConnectionSecret();
-      conn.setHeader('secret', secret);
-      this.connections[secret] = conn;
-
-      // Inform client of its secret via DATA_SET message
-      try {
-        (conn as any).postAndForget({ type: 'set', key: 'secret', value: secret } as any);
-      } catch {}
-
-      conn.onRouteMessage = async (msgId: MsgID, msg: MsgRoute) => {
-        return await this.handleRouteMessage(conn.getSecret(), msgId, msg);
-      };
-
-      conn.onSubscribeToRoute = (route) => {
-        const secret = conn.getSecret();
-        console.log(`Router: Subscribing to route ${route} with secret: ${secret}`);
-        this.subscribeConnectionToRoute(route, secret);
-      };
-
-      conn.onUnsubscribeFromRoute = (route) => {
-        this.unsubscribeConnectionFromRoute(route, conn.getSecret());
-      };
-
-      conn.onClose = () => {
-        this.removeConnection(conn.getSecret());
-      };
+      // Create a new connection with a fresh secret
+      const secret = reconnectSecret || newConnectionSecret();
+      const conn = this.createAndSetupConnection(strategy, secret);
       
       return conn;
+    }
+  }
+
+  /**
+   * Create and set up a new connection with the given secret
+   * @param strategy - The communication strategy
+   * @param secret - The connection secret
+   * @returns The configured connection
+   */
+  private createAndSetupConnection(strategy: CommunicationStrategy, secret: ConnectionSecret): ServerConnection {
+    const conn = new ServerConnection(strategy);
+    
+    // Set the secret and register the connection
+    conn.setHeader('secret', secret);
+    this.connections[secret] = conn;
+    
+    // Inform client of its secret via DATA_SET message
+    try {
+      conn.postAndExpectResponse(msg_ConnDataSet('secret', secret));
+    } catch (error) {
+      // Connection might not be ready yet, this is handled by the client
+    }
+    
+    // Set up connection handlers
+    conn.onRouteMessage = async (msgId: MsgID, msg: MsgRoute) => {
+      return await this.handleRouteMessage(conn.getSecret(), msgId, msg);
+    };
+
+    conn.onSubscribeToRoute = (route) => {
+      this.subscribeConnectionToRoute(route, conn.getSecret());
+    };
+
+    conn.onUnsubscribeFromRoute = (route) => {
+      this.unsubscribeConnectionFromRoute(route, conn.getSecret());
+    };
+
+    conn.onClose = () => {
+      this.scheduleConnectionRemoval(conn.getSecret());
+    };
+    
+    return conn;
+  }
+
+  /**
+   * Clean up subscriptions for a connection
+   * @param connSecret - The connection secret
+   */
+  private cleanupConnectionSubscriptions(connSecret: ConnectionSecret): void {
+    for (const route of this.outRoutes) {
+      route.listeners = route.listeners.filter((l) => l.conn !== connSecret);
     }
   }
 
@@ -581,11 +590,33 @@ export class Router {
    * @param connSecret - The connection secret
    */
   private removeConnection(connSecret: ConnectionSecret): void {
-    delete this.connections[connSecret];
-
-    for (const route of this.outRoutes) {
-      route.listeners = route.listeners.filter((l) => l.conn !== connSecret);
+    // Clear any pending removal for this connection
+    if (this.pendingRemovals[connSecret]) {
+      clearTimeout(this.pendingRemovals[connSecret]);
+      delete this.pendingRemovals[connSecret];
     }
+
+    // Clean up subscriptions and remove connection
+    this.cleanupConnectionSubscriptions(connSecret);
+    delete this.connections[connSecret];
+  }
+
+  /**
+   * Schedule a connection for removal with a grace period for reconnection
+   * @param connSecret - The connection secret
+   * @param gracePeriodMs - Grace period in milliseconds (default: 1000ms)
+   */
+  private scheduleConnectionRemoval(connSecret: ConnectionSecret, gracePeriodMs: number = 1000): void {
+    // Clear any existing pending removal
+    if (this.pendingRemovals[connSecret]) {
+      clearTimeout(this.pendingRemovals[connSecret]);
+    }
+
+    // Schedule removal after grace period
+    this.pendingRemovals[connSecret] = setTimeout(() => {
+      this.removeConnection(connSecret);
+      delete this.pendingRemovals[connSecret];
+    }, gracePeriodMs);
   }
 
   /**
@@ -619,7 +650,7 @@ export class Router {
           route: path,
         } as RequestContext;
 
-        const verbAndHandler = route.verbs.find((vh) => vh.verb === (verb as any));
+        const verbAndHandler = route.verbs.find((vh) => vh.verb === verb);
         if (!verbAndHandler) {
           return { status: 405, body: { error: `Method ${verb} not allowed for ${path}` } };
         }

@@ -292,39 +292,44 @@ export class Router {
     reconnectSecret: ConnectionSecret | null = null
   ): ServerConnection {
     if (reconnectSecret && this.connections[reconnectSecret]) {
-      // Reconnect using existing connection
-      // This is a placeholder - actual implementation would depend on strategy
-      throw new Error("Reconnection not implemented yet");
-    } else {
-      if (reconnectSecret) {
-        console.error("Reconnect secret provided, but no connection found");
-      }
-
-      const conn = new ServerConnection(strategy, (data) => {
-        if (data[0] === "secret") {
-          const secret = data[1] as ConnectionSecret;
-          this.connections[secret] = conn;
-        }
-      });
-
-      conn.onRouteMessage = async (msgId: MsgID, msg: MsgRoute) => {
-        return await this.handleRouteMessage(conn.getSecret(), msgId, msg);
-      };
-
-      conn.onSubscribeToRoute = (route) => {
-        this.subscribeConnectionToRoute(route, conn.getSecret());
-      };
-
-      conn.onUnsubscribeFromRoute = (route) => {
-        this.unsubscribeConnectionFromRoute(route, conn.getSecret());
-      };
-
-      conn.onClose = () => {
-        this.removeConnection(conn.getSecret());
-      };
+      // Handle duplicate connection - disconnect the existing one
+      const existingConn = this.connections[reconnectSecret];
+      console.log(`Replacing existing connection for secret: ${reconnectSecret}`);
       
-      return conn;
+      // Gracefully close the existing connection
+      existingConn.close();
+      this.removeConnection(reconnectSecret);
     }
+
+    if (reconnectSecret) {
+      console.log(`Creating new connection for secret: ${reconnectSecret}`);
+    }
+
+    const conn = new ServerConnection(strategy, (data) => {
+      if (data[0] === "secret") {
+        const secret = data[1] as ConnectionSecret;
+        this.connections[secret] = conn;
+      }
+    });
+
+    // Set up connection handlers
+    conn.onRouteMessage = async (msgId: MsgID, msg: MsgRoute) => {
+      return await this.handleRouteMessage(conn.getSecret(), msgId, msg);
+    };
+
+    conn.onSubscribeToRoute = (route) => {
+      this.subscribeConnectionToRoute(route, conn.getSecret());
+    };
+
+    conn.onUnsubscribeFromRoute = (route) => {
+      this.unsubscribeConnectionFromRoute(route, conn.getSecret());
+    };
+
+    conn.onClose = () => {
+      this.removeConnection(conn.getSecret());
+    };
+    
+    return conn;
   }
 
   /**
