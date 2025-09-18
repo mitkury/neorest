@@ -493,33 +493,26 @@ export class Router {
       throw new Error(`Connection with id ${connSecret} does not exist`);
     }
 
-    // Find the most specific matching route and subscribe only to that
-    let best: { route: OutRouteLayer; params: string[] } | null = null;
+    // Subscribe to all matching out routes (internalBroadcast will ensure only
+    // one delivery using the most specific route), avoiding duplicates.
     for (const route of this.outRoutes) {
       const m = route.match(path);
-      if (m) {
-        const params = Object.values(m.params);
-        if (!best || route.specificity > best.route.specificity) {
-          best = { route, params };
-        }
-      }
-    }
+      if (!m) continue;
+      const params = Object.values(m.params);
 
-    if (best) {
-      // Avoid duplicate subscriptions for the same connection and params
-      const alreadySubscribed = best.route.listeners.some((l) => {
+      const alreadySubscribed = route.listeners.some((l) => {
         if (l.conn !== connSecret) return false;
-        if (l.params.length !== best!.params.length) return false;
+        if (l.params.length !== params.length) return false;
         for (let i = 0; i < l.params.length; i++) {
-          if (l.params[i] !== best!.params[i]) return false;
+          if (l.params[i] !== params[i]) return false;
         }
         return true;
       });
 
       if (!alreadySubscribed) {
-        best.route.listeners.push({
+        route.listeners.push({
           conn: connSecret,
-          params: best.params,
+          params,
         });
       }
     }
@@ -558,41 +551,42 @@ export class Router {
     exceptConn?: ServerConnection,
   ): void {
     const verb = action as RouteVerb;
+    // Identify the most specific matching out route and broadcast only once.
+    let best: { layer: OutRouteLayer; match: ReturnType<MatchFunction> } | null = null;
+    for (const layer of this.outRoutes) {
+      const m = layer.match(route);
+      if (!m) continue;
+      if (!best || layer.specificity > best.layer.specificity) {
+        best = { layer, match: m };
+      }
+    }
 
-    for (const r of this.outRoutes) {
-      const match = r.match(route);
-      if (match) {
-        const paramsArr = Object.values(match.params);
-        for (const listener of r.listeners) {
-          const conn = this.connections[listener.conn];
-          if (conn !== exceptConn) {
-            // Make sure the params match.
-            // That means that the listener is subscribed to the exact same route
-            let paramsMatch = true;
-            for (let i = 0; i < listener.params.length; i++) {
-              if (listener.params[i] !== paramsArr[i]) {
-                paramsMatch = false;
-                break;
-              }
-            }
+    if (!best) return;
 
-            if (paramsMatch) {
-              const isValidForListener = r.validate(
-                conn,
-                match.params as Record<string, string>,
-              );
-              if (isValidForListener instanceof Promise) {
-                isValidForListener.then((isValid) => {
-                  if (isValid) {
-                    conn.sendToRoute(route, verb, payload);
-                  }
-                });
-              } else if (isValidForListener) {
-                conn.sendToRoute(route, verb, payload);
-              }
-            }
+    const paramsArr = Object.values(best.match.params);
+    for (const listener of best.layer.listeners) {
+      const conn = this.connections[listener.conn];
+      if (!conn || conn === exceptConn) continue;
+
+      // Ensure listener params match broadcast params
+      let paramsMatch = listener.params.length === paramsArr.length;
+      for (let i = 0; paramsMatch && i < listener.params.length; i++) {
+        if (listener.params[i] !== paramsArr[i]) paramsMatch = false;
+      }
+      if (!paramsMatch) continue;
+
+      const isValidForListener = best.layer.validate(
+        conn,
+        best.match.params as Record<string, string>,
+      );
+      if (isValidForListener instanceof Promise) {
+        isValidForListener.then((isValid) => {
+          if (isValid) {
+            conn.sendToRoute(route, verb, payload);
           }
-        }
+        });
+      } else if (isValidForListener) {
+        conn.sendToRoute(route, verb, payload);
       }
     }
   }
