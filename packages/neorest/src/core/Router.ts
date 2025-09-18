@@ -222,9 +222,8 @@ export class Router {
     reconnectSecret: ConnectionSecret | null = null
   ): Promise<ServerConnection> {
     if (reconnectSecret && (this.connections[reconnectSecret] || this.pendingRemovals[reconnectSecret])) {
-      // Handle duplicate connection - disconnect the existing one
+      // Handle duplicate connection - replace the existing one
       const existingConn = this.connections[reconnectSecret];
-      console.log(`Replacing existing connection for secret: ${reconnectSecret}`);
       
       // If there's a pending removal, cancel it
       if (this.pendingRemovals[reconnectSecret]) {
@@ -232,87 +231,72 @@ export class Router {
         delete this.pendingRemovals[reconnectSecret];
       }
       
-      // Create a new connection with the same secret
-      const conn = new ServerConnection(strategy, (data) => {
-        if (data[0] === "secret") {
-          const secret = data[1] as ConnectionSecret;
-          this.connections[secret] = conn;
-        }
-      });
-      
-      // Set the secret on the new connection and register it FIRST
-      conn.setHeader('secret', reconnectSecret);
-      this.connections[reconnectSecret] = conn;
-      
-      // Inform client of its secret via DATA_SET message (same as initial connection)
-      try {
-        conn.postAndExpectResponse(msg_ConnDataSet('secret', reconnectSecret));
-      } catch {}
-      
-      // Set up connection handlers AFTER registering the connection
-      conn.onRouteMessage = async (msgId: MsgID, msg: MsgRoute) => {
-        return await this.handleRouteMessage(conn.getSecret(), msgId, msg);
-      };
-
-      conn.onSubscribeToRoute = (route) => {
-        const secret = conn.getSecret();
-        console.log(`Router: Subscribing to route ${route} with secret: ${secret}`);
-        this.subscribeConnectionToRoute(route, secret);
-      };
-
-      conn.onUnsubscribeFromRoute = (route) => {
-        this.unsubscribeConnectionFromRoute(route, conn.getSecret());
-      };
-
-      conn.onClose = () => {
-        this.scheduleConnectionRemoval(conn.getSecret());
-      };
-      
       // Clean up the old connection's subscriptions immediately
-      for (const route of this.outRoutes) {
-        route.listeners = route.listeners.filter((l) => l.conn !== reconnectSecret);
-      }
+      this.cleanupConnectionSubscriptions(reconnectSecret);
       
-      // Now close the existing connection
+      // Create and set up the new connection
+      const conn = this.createAndSetupConnection(strategy, reconnectSecret);
+      
+      // Close the existing connection
       existingConn.close();
       
       return conn;
     } else {
-      if (reconnectSecret) {
-        console.error(`Reconnect secret provided (${reconnectSecret}), but no connection found. Available: ${Object.keys(this.connections).join(', ')}`);
-      }
-
-      const conn = new ServerConnection(strategy);
-
-      // Generate and assign server-issued secret; register immediately
-      const secret = newConnectionSecret();
-      conn.setHeader('secret', secret);
-      this.connections[secret] = conn;
-
-      // Inform client of its secret via DATA_SET message
-      try {
-        conn.postAndExpectResponse(msg_ConnDataSet('secret', secret));
-      } catch {}
-
-      conn.onRouteMessage = async (msgId: MsgID, msg: MsgRoute) => {
-        return await this.handleRouteMessage(conn.getSecret(), msgId, msg);
-      };
-
-      conn.onSubscribeToRoute = (route) => {
-        const secret = conn.getSecret();
-        console.log(`Router: Subscribing to route ${route} with secret: ${secret}`);
-        this.subscribeConnectionToRoute(route, secret);
-      };
-
-      conn.onUnsubscribeFromRoute = (route) => {
-        this.unsubscribeConnectionFromRoute(route, conn.getSecret());
-      };
-
-      conn.onClose = () => {
-        this.scheduleConnectionRemoval(conn.getSecret());
-      };
+      // Create a new connection with a fresh secret
+      const secret = reconnectSecret || newConnectionSecret();
+      const conn = this.createAndSetupConnection(strategy, secret);
       
       return conn;
+    }
+  }
+
+  /**
+   * Create and set up a new connection with the given secret
+   * @param strategy - The communication strategy
+   * @param secret - The connection secret
+   * @returns The configured connection
+   */
+  private createAndSetupConnection(strategy: CommunicationStrategy, secret: ConnectionSecret): ServerConnection {
+    const conn = new ServerConnection(strategy);
+    
+    // Set the secret and register the connection
+    conn.setHeader('secret', secret);
+    this.connections[secret] = conn;
+    
+    // Inform client of its secret via DATA_SET message
+    try {
+      conn.postAndExpectResponse(msg_ConnDataSet('secret', secret));
+    } catch (error) {
+      // Connection might not be ready yet, this is handled by the client
+    }
+    
+    // Set up connection handlers
+    conn.onRouteMessage = async (msgId: MsgID, msg: MsgRoute) => {
+      return await this.handleRouteMessage(conn.getSecret(), msgId, msg);
+    };
+
+    conn.onSubscribeToRoute = (route) => {
+      this.subscribeConnectionToRoute(route, conn.getSecret());
+    };
+
+    conn.onUnsubscribeFromRoute = (route) => {
+      this.unsubscribeConnectionFromRoute(route, conn.getSecret());
+    };
+
+    conn.onClose = () => {
+      this.scheduleConnectionRemoval(conn.getSecret());
+    };
+    
+    return conn;
+  }
+
+  /**
+   * Clean up subscriptions for a connection
+   * @param connSecret - The connection secret
+   */
+  private cleanupConnectionSubscriptions(connSecret: ConnectionSecret): void {
+    for (const route of this.outRoutes) {
+      route.listeners = route.listeners.filter((l) => l.conn !== connSecret);
     }
   }
 
@@ -612,11 +596,9 @@ export class Router {
       delete this.pendingRemovals[connSecret];
     }
 
+    // Clean up subscriptions and remove connection
+    this.cleanupConnectionSubscriptions(connSecret);
     delete this.connections[connSecret];
-
-    for (const route of this.outRoutes) {
-      route.listeners = route.listeners.filter((l) => l.conn !== connSecret);
-    }
   }
 
   /**
