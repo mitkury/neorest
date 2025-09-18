@@ -222,24 +222,24 @@ export class Router {
     reconnectSecret: ConnectionSecret | null = null
   ): Promise<ServerConnection> {
     if (reconnectSecret && (this.connections[reconnectSecret] || this.pendingRemovals[reconnectSecret])) {
-      // Handle duplicate connection - replace the existing one
+      // Handle duplicate connection by reusing existing connection instance
+      // to preserve subscriptions and state.
       const existingConn = this.connections[reconnectSecret];
-      
+
       // If there's a pending removal, cancel it
       if (this.pendingRemovals[reconnectSecret]) {
         clearTimeout(this.pendingRemovals[reconnectSecret]);
         delete this.pendingRemovals[reconnectSecret];
       }
-      
-      // Clean up the old connection's subscriptions immediately
-      this.cleanupConnectionSubscriptions(reconnectSecret);
-      
-      // Create and set up the new connection
+
+      if (existingConn) {
+        // Update the communication strategy on the same connection object
+        await existingConn.updateStrategy(strategy);
+        return existingConn;
+      }
+
+      // If we don't have existingConn yet (e.g., was pending removal), create anew
       const conn = this.createAndSetupConnection(strategy, reconnectSecret);
-      
-      // Close the existing connection
-      existingConn.close();
-      
       return conn;
     } else {
       // Create a new connection with a fresh secret
@@ -506,10 +506,22 @@ export class Router {
     }
 
     if (best) {
-      best.route.listeners.push({
-        conn: connSecret,
-        params: best.params,
+      // Avoid duplicate subscriptions for the same connection and params
+      const alreadySubscribed = best.route.listeners.some((l) => {
+        if (l.conn !== connSecret) return false;
+        if (l.params.length !== best!.params.length) return false;
+        for (let i = 0; i < l.params.length; i++) {
+          if (l.params[i] !== best!.params[i]) return false;
+        }
+        return true;
       });
+
+      if (!alreadySubscribed) {
+        best.route.listeners.push({
+          conn: connSecret,
+          params: best.params,
+        });
+      }
     }
   }
 
