@@ -690,8 +690,8 @@ var HttpStrategy = class {
     this.openCallback = null;
     this.pollInterval = null;
     this.authData = {};
-    this.pollDelay = 1e3;
-    // 1 second
+    this.pollDelay = 100;
+    // 100 ms for faster responsiveness in tests
     this.pollFailures = 0;
     this.maxPollFailures = 3;
     this.clientId = null;
