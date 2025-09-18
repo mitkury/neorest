@@ -11,7 +11,7 @@ export class HttpStrategy implements ClientStrategy {
   private pollInterval: ReturnType<typeof setInterval> | null = null;
   private connectionInfo: ConnectionInfo;
   private authData: Record<string, string> = {};
-  private pollDelay = 1000; // 1 second
+  private pollDelay = 100; // 100 ms for faster responsiveness in tests
   private pollFailures = 0;
   private maxPollFailures = 3;
   private clientId: string | null = null;
