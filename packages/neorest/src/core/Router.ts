@@ -510,6 +510,7 @@ export class Router {
       });
 
       if (!alreadySubscribed) {
+        try { console.log(`[Router] subscribe ${connSecret} -> ${route.route} params=${JSON.stringify(params)}`); } catch {}
         route.listeners.push({
           conn: connSecret,
           params,
@@ -563,6 +564,10 @@ export class Router {
 
     if (!best) return;
 
+    try {
+      console.log(`[Router] broadcast route=${route} using=${best.layer.route} listeners=${best.layer.listeners.length}`);
+    } catch {}
+
     const paramsArr = Object.values(best.match.params);
     for (const listener of best.layer.listeners) {
       const conn = this.connections[listener.conn];
@@ -582,10 +587,12 @@ export class Router {
       if (isValidForListener instanceof Promise) {
         isValidForListener.then((isValid) => {
           if (isValid) {
+            try { console.log(`[Router] deliver to ${listener.conn} route=${route}`); } catch {}
             conn.sendToRoute(route, verb, payload);
           }
         });
       } else if (isValidForListener) {
+        try { console.log(`[Router] deliver to ${listener.conn} route=${route}`); } catch {}
         conn.sendToRoute(route, verb, payload);
       }
     }
