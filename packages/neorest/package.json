@@ -35,15 +35,14 @@
     "crypto": false
   },
   "scripts": {
-    "prebuild": "rimraf dist deno",
+    "prebuild": "rimraf dist",
     "build": "tsup",
-    "clean": "rimraf dist deno"
+    "clean": "rimraf dist"
   },
   "author": "Dmitry Kury (https://dkury.com)",
   "license": "MIT",
   "files": [
-    "dist",
-    "deno"
+    "dist"
   ],
   "dependencies": {
     "ws": "^8.18.0"

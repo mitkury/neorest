@@ -44,7 +44,11 @@ Neorest works across multiple runtimes with a single package:
 ### Client (Browser/Node.js/Deno)
 
 ```typescript
+// Node.js/Browser
 import { Client } from 'neorest';
+
+// Deno
+import { Client } from 'npm:neorest';
 
 // Create a client
 const client = new Client('ws://localhost:3000');
@@ -88,7 +92,7 @@ await router.start(3000);
 ### Server (Deno)
 
 ```typescript
-import { DenoRouter } from 'neorest/deno';
+import { DenoRouter } from 'npm:neorest/deno';
 
 const router = new DenoRouter();
 
