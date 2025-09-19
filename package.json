@@ -6,18 +6,11 @@
   "author": "Dmitry Kury (https://dkury.com)",
   "license": "MIT",
   "workspaces": [
-    "packages/*",
-    "packages/*/*",
-    "packages/*/*/*",
-    "packages/neorest-node"
+    "packages/*"
   ],
   "scripts": {
-    "clean": "npm run clean --workspaces",
     "build": "npm run build -w neorest",
-    "pretest": "npm run build",
-    "test": "npm run test -w @neorest/tests",
-    "test:unit": "npm run test",
-    "test:e2e": "npm run test -w @neorest/e2e-tests"
+    "test": "npm run build && npm run test -w @neorest/tests"
   },
   "repository": {
     "type": "git",
@@ -32,11 +25,6 @@
     "Subscriptions"
   ],
   "devDependencies": {
-    "rimraf": "^5.0.0",
-    "tsup": "^8.4.0",
     "typescript": "^5.0.0"
-  },
-  "dependencies": {
-    "chalk": "^4.1.2"
   }
 }

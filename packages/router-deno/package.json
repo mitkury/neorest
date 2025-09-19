@@ -7,17 +7,13 @@
   "type": "module",
   "scripts": {
     "build": "tsc -b",
-    "clean": "rimraf dist",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "clean": "rimraf dist"
   },
   "author": "Dmitry Kury (https://dkury.com)",
   "license": "MIT",
   "files": [
     "dist"
   ],
-  "publishConfig": {
-    "access": "public"
-  },
   "dependencies": {
     "@neorest/core": "^0.1.0",
     "@neorest/router-core": "^0.1.0"
