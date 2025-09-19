@@ -1,4 +1,4 @@
-import { ConnectionSecret } from '../types';
+import { ConnectionSecret } from '../types.js';
 
 /**
  * Generate a random string of specified length

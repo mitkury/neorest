@@ -1,4 +1,4 @@
-import { CommunicationStrategy } from './CommunicationStrategy';
+import { CommunicationStrategy } from './CommunicationStrategy.js';
 import { 
   MsgID, 
   MsgType, 
@@ -16,8 +16,8 @@ import {
   new_RouteResponseError,
   new_MsgWrapper,
   new_SendAndForgetMsgWrapper
-} from './types';
-import { TrackedPromise } from './utils/TrackedPromise';
+} from './types.js';
+import { TrackedPromise } from './utils/TrackedPromise.js';
 
 /**
  * Pair of a message and its response
@@ -62,6 +62,7 @@ export abstract class ConnectionBase {
   protected headers: Record<string, Payload> = {};
   protected messageHandlers: MessageHandlerMap = {};
   protected closingTimer: ReturnType<typeof setTimeout> | null = null;
+  protected rateLimitInterval: ReturnType<typeof setInterval> | null = null;
   
   // Event handlers
   public onOpen: () => void = () => {};
@@ -92,6 +93,7 @@ export abstract class ConnectionBase {
    */
   public close(): void {
     this.clearClosingTimer();
+    this.clearRateLimitInterval();
     this.strategy.disconnect();
   }
 
@@ -141,7 +143,7 @@ export abstract class ConnectionBase {
    * Set up rate limiting
    */
   private setupRateLimiting(): void {
-    setInterval(() => {
+    this.rateLimitInterval = setInterval(() => {
       this.messagesSentInASecond = 0;
     }, 1000);
   }
@@ -305,7 +307,7 @@ export abstract class ConnectionBase {
    * @param msg - The message to send
    * @returns The message ID
    */
-  protected postAndExpectResponse(msg: MsgType): MsgID {
+  public postAndExpectResponse(msg: MsgType): MsgID {
     if (msg.type === RESPONSE) {
       // We should never expect a response (ack) to a response message.
       // That would result in an infinite loop of responses.
@@ -422,6 +424,16 @@ export abstract class ConnectionBase {
     if (this.closingTimer) {
       clearTimeout(this.closingTimer);
       this.closingTimer = null;
+    }
+  }
+
+  /**
+   * Clear the rate limit interval
+   */
+  protected clearRateLimitInterval(): void {
+    if (this.rateLimitInterval) {
+      clearInterval(this.rateLimitInterval);
+      this.rateLimitInterval = null;
     }
   }
 

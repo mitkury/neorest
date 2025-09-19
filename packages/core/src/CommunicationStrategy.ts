@@ -1,4 +1,4 @@
-import { MsgWrapper } from './types';
+import { MsgWrapper } from './types.js';
 
 /**
  * Base communication strategy interface

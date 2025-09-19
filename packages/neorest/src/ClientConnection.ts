@@ -1,4 +1,4 @@
-import { ConnectionBase } from './core/ConnectionBase';
+import { ConnectionBase } from '@neorest/core';
 import { 
   ClientStrategy, 
   CommunicationStrategy,

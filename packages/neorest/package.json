@@ -9,7 +9,7 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "browser": "./dist/index.browser.mjs",
+      "browser": "./dist/index.browser.js",
       "deno": "./deno/mod.js",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs",
@@ -19,7 +19,7 @@
       "import": "./dist/node.mjs",
       "require": "./dist/node.cjs"
     },
-    "./browser": "./dist/index.browser.mjs",
+    "./browser": "./dist/index.browser.js",
     "./deno": "./deno/mod.js",
     "./core": {
       "import": "./dist/core.mjs",

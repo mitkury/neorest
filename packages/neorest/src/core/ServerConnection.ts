@@ -1,4 +1,4 @@
-import { ConnectionBase } from './ConnectionBase';
+import { ConnectionBase } from '@neorest/core';
 import { 
   MsgID,
   MsgRoute,
