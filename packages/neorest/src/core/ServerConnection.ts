@@ -100,17 +100,7 @@ export class ServerConnection extends ConnectionBase {
     // Update to the new strategy (this will automatically connect)
     await this.setStrategy(newStrategy);
 
-    // Re-send server-managed secret to the client over the new transport
-    // so that fresh client instances can learn it immediately.
-    const currentSecret = this.getSecret();
-    if (currentSecret) {
-      try {
-        this.postAndExpectResponse(msg_ConnDataSet('secret', currentSecret));
-      } catch (error) {
-        // Connection might not be ready yet, this is handled by the client
-        console.debug("Failed to send secret to client:", error);
-      }
-    }
+    // Secret is already available in the connection URL, no need to send DATA_SET message
 
     // Clear deduplication and pending ack state so that new client-side
     // message IDs (which typically start from 0) are not mistaken for
