@@ -4,7 +4,7 @@ import { NodeRouter } from 'neorest/node';
 import { Client } from 'neorest';
 import { performance } from 'perf_hooks';
 
-console.log('🚀 Realistic NeoRest Performance Benchmark\n');
+console.log('🚀 Realistic Neorest Performance Benchmark\n');
 
 async function realisticBenchmark(messageCount) {
   console.log(`📊 Testing ${messageCount} messages...`);
@@ -29,7 +29,7 @@ async function realisticBenchmark(messageCount) {
     });
   
   await server.listen();
-  console.log('✅ Server started');
+  console.log('✅ Neorest server started');
   
   const client = new Client(`ws://localhost:${port}`, 'websocket');
   
