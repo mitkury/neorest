@@ -9,11 +9,8 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "browser": {
-        "import": "./dist/index.browser.mjs",
-        "require": "./dist/index.browser.cjs"
-      },
-      "deno": "./deno/mod.ts",
+      "browser": "./dist/index.browser.mjs",
+      "deno": "./deno/mod.js",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs",
       "default": "./dist/index.mjs"
@@ -22,11 +19,8 @@
       "import": "./dist/node.mjs",
       "require": "./dist/node.cjs"
     },
-    "./browser": {
-      "import": "./dist/index.browser.mjs",
-      "require": "./dist/index.browser.cjs"
-    },
-    "./deno": "./deno/mod.ts",
+    "./browser": "./dist/index.browser.mjs",
+    "./deno": "./deno/mod.js",
     "./core": {
       "import": "./dist/core.mjs",
       "require": "./dist/core.cjs"
@@ -42,12 +36,8 @@
   },
   "scripts": {
     "prebuild": "rimraf dist deno",
-    "build": "tsup && tsup --config tsup.browser.config.ts && tsup --config tsup.deno.config.ts",
-    "build:node": "tsup",
-    "build:browser": "tsup --config tsup.browser.config.ts",
-    "build:deno": "tsup --config tsup.deno.config.ts",
-    "clean": "rimraf dist deno",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsup",
+    "clean": "rimraf dist deno"
   },
   "author": "Dmitry Kury (https://dkury.com)",
   "license": "MIT",

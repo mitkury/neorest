@@ -1,8 +1,0 @@
-{
-  "name": "@neorest/e2e-tests",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "test": "echo 'Playwright e2e tests will go here' && exit 0"
-  }
-}
