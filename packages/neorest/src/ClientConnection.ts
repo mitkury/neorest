@@ -7,6 +7,7 @@ import {
   ReconnectOptions,
   MsgID,
   MsgRoute,
+  MsgDataSet,
   ROUTE_MESSAGE,
   ON_ROUTE,
   OFF_ROUTE,
@@ -318,18 +319,18 @@ export class ClientConnection extends ConnectionBase {
     });
 
     // Intercept DATA_SET from server to capture and propagate secret
-    this.messageHandlers['set'] = (id: MsgID, msg: any) => {
+    this.messageHandlers['set'] = (id: MsgID, msg: MsgDataSet) => {
       const k = msg.key;
       const v = msg.value;
-      (this as any).headers[k] = v;
+      this.headers[k] = v;
       if (k === 'secret') {
         const secret = String(v || '');
         // Propagate to AutoStrategy for WS upgrade URL if supported
-        if ((this.strategy as any).setConnectionSecret) {
-          (this.strategy as any).setConnectionSecret(secret);
+        if ('setConnectionSecret' in this.strategy && typeof this.strategy.setConnectionSecret === 'function') {
+          this.strategy.setConnectionSecret(secret);
         }
       }
-      return new_MsgResponseOK(id, [k, v] as any);
+      return new_MsgResponseOK(id, [k, v]);
     };
   }
 

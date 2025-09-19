@@ -191,7 +191,7 @@ export class WebSocketStrategy implements ServerStrategy {
    * @param message - The message to broadcast
    * @param filter - Optional filter function to determine which connections receive the message
    */
-  broadcast(message: MsgWrapper, filter?: (conn: any) => boolean): void {
+  broadcast(message: MsgWrapper, filter?: (conn: WebSocket) => boolean): void {
     // This is a single connection strategy, so broadcasting is the same as sending
     if (!filter || filter(this.socket)) {
       this.send(message);

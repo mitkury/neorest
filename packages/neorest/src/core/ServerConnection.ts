@@ -106,14 +106,17 @@ export class ServerConnection extends ConnectionBase {
     if (currentSecret) {
       try {
         this.postAndExpectResponse(msg_ConnDataSet('secret', currentSecret));
-      } catch {}
+      } catch (error) {
+        // Connection might not be ready yet, this is handled by the client
+        console.debug("Failed to send secret to client:", error);
+      }
     }
 
     // Clear deduplication and pending ack state so that new client-side
     // message IDs (which typically start from 0) are not mistaken for
     // duplicates of the previous transport session.
-    (this as any).receivedMessages = [];
-    (this as any).messagesToAck = [];
+    this.receivedMessages = [];
+    this.messagesToAck = [];
   }
 
   /**

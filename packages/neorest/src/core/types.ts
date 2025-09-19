@@ -1,4 +1,17 @@
 /**
+ * Forward declarations to avoid circular dependencies
+ */
+declare class ServerConnection {
+  send(message: any): void;
+  isConnected(): boolean;
+  disconnect(): void;
+}
+
+declare class Router {
+  // Router methods will be defined where needed
+}
+
+/**
  * Message ID type
  */
 export type MsgID = number;
@@ -403,7 +416,7 @@ export type OutRouteLayer = {
   specificity: number;
   listeners: RouteListener[];
   validate: (
-    conn: any, // ServerConnection type will be imported where needed
+    conn: ServerConnection,
     params: Record<string, string>,
   ) => boolean | Promise<boolean>;
 };
@@ -413,7 +426,7 @@ export type OutRouteLayer = {
  */
 export interface RequestContext {
   params: Record<string, string>;
-  sender: any; // ServerConnection type will be imported where needed
+  sender: ServerConnection;
   data: Payload;
   headers: Record<string, string>;
   error?: string;
@@ -439,7 +452,7 @@ export interface ServerAdapter {
    * @param router - The router instance
    * @returns A promise that resolves when the server is initialized
    */
-  initialize(router: any): Promise<void>; // Router type will be imported where needed
+  initialize(router: Router): Promise<void>;
   
   /**
    * Start the server

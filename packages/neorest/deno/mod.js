@@ -1,20 +1,6 @@
-// src/core/types.ts
+// ../core/dist/types.js
 var DATA_SET = "set";
 var PING = "ping";
-var ON_ROUTE = "on";
-function new_MsgSubscribeToRoute(route) {
-  return {
-    type: ON_ROUTE,
-    route
-  };
-}
-var OFF_ROUTE = "off";
-function new_MsgUnsubscribeFromRoute(route) {
-  return {
-    type: OFF_ROUTE,
-    route
-  };
-}
 var RESPONSE = "res";
 function new_MsgResponse(targetMsgId, status, data) {
   return {
@@ -38,7 +24,6 @@ function new_MsgResponseWithCode(targetMsgId, status, text) {
 function new_MsgGenericError(targetMsgId, text) {
   return new_MsgResponseWithCode(targetMsgId, 500, text);
 }
-var ROUTE_MESSAGE = "route";
 function new_MsgWrapper(id, msg) {
   return {
     id,
@@ -61,7 +46,7 @@ function new_SendAndForgetMsgWrapper(msg) {
   };
 }
 
-// src/core/utils/TrackedPromise.ts
+// ../core/dist/utils/TrackedPromise.js
 var TrackedPromise = class {
   /**
    * Constructor
@@ -74,18 +59,15 @@ var TrackedPromise = class {
     this._original = promiseOrValue;
     if (promiseOrValue instanceof Promise) {
       this._promise = new Promise((resolve, reject) => {
-        promiseOrValue.then(
-          (value) => {
-            this._isPending = false;
-            this._isFulfilled = true;
-            resolve(value);
-          },
-          (reason) => {
-            this._isPending = false;
-            this._isRejected = true;
-            reject(reason);
-          }
-        );
+        promiseOrValue.then((value) => {
+          this._isPending = false;
+          this._isFulfilled = true;
+          resolve(value);
+        }, (reason) => {
+          this._isPending = false;
+          this._isRejected = true;
+          reject(reason);
+        });
       });
     } else {
       this._isPending = false;
@@ -145,8 +127,8 @@ var TrackedPromise = class {
   }
 };
 
-// src/core/ConnectionBase.ts
-var _ConnectionBase = class _ConnectionBase {
+// ../core/dist/ConnectionBase.js
+var ConnectionBase = class _ConnectionBase {
   /**
    * Constructor
    * @param strategy - The communication strategy to use
@@ -162,7 +144,6 @@ var _ConnectionBase = class _ConnectionBase {
     this.messageHandlers = {};
     this.closingTimer = null;
     this.rateLimitInterval = null;
-    // Event handlers
     this.onOpen = () => {
     };
     this.onClose = () => {
@@ -480,10 +461,37 @@ var _ConnectionBase = class _ConnectionBase {
     this.messageHandlers[type] = handler;
   }
 };
-// Configuration
-_ConnectionBase.RESEND_NOT_ANSWERED_MESSAGES_AFTER_MS = 3e3;
-_ConnectionBase.SEND_LIMIT_PER_SEC = 100;
-var ConnectionBase = _ConnectionBase;
+ConnectionBase.RESEND_NOT_ANSWERED_MESSAGES_AFTER_MS = 3e3;
+ConnectionBase.SEND_LIMIT_PER_SEC = 100;
+
+// src/core/types.ts
+var ON_ROUTE = "on";
+function new_MsgSubscribeToRoute(route) {
+  return {
+    type: ON_ROUTE,
+    route
+  };
+}
+var OFF_ROUTE = "off";
+function new_MsgUnsubscribeFromRoute(route) {
+  return {
+    type: OFF_ROUTE,
+    route
+  };
+}
+var RESPONSE2 = "res";
+function new_MsgResponse2(targetMsgId, status, data) {
+  return {
+    type: RESPONSE2,
+    target: targetMsgId,
+    status,
+    data
+  };
+}
+function new_MsgResponseOK2(targetMsgId, data) {
+  return new_MsgResponse2(targetMsgId, 200, data !== void 0 ? data : "OK");
+}
+var ROUTE_MESSAGE = "route";
 
 // src/strategies/WebSocketStrategy.ts
 var WebSocketStrategy = class {
@@ -922,11 +930,13 @@ var AutoStrategy = class {
   disconnect() {
     try {
       this.ws?.disconnect();
-    } catch {
+    } catch (error) {
+      console.debug("Error disconnecting WebSocket:", error);
     }
     try {
       this.http.disconnect();
-    } catch {
+    } catch (error) {
+      console.debug("Error disconnecting HTTP:", error);
     }
     this.connectionInfo.status = "disconnected";
   }
@@ -936,7 +946,8 @@ var AutoStrategy = class {
         this.ws.send(message);
         this.connectionInfo.type = "websocket";
         return;
-      } catch (e) {
+      } catch (error) {
+        console.debug("WebSocket send failed, falling back to HTTP:", error);
       }
     }
     this.http.send(message);
@@ -1270,7 +1281,7 @@ var ClientConnection = class extends ConnectionBase {
         const action = routeMsg.verb;
         sub({ data: routeMsg.data, action });
       }
-      return new_MsgResponseOK(_, "ok");
+      return new_MsgResponseOK2(_, "ok");
     });
     this.messageHandlers["set"] = (id, msg) => {
       const k = msg.key;
@@ -1278,11 +1289,11 @@ var ClientConnection = class extends ConnectionBase {
       this.headers[k] = v;
       if (k === "secret") {
         const secret = String(v || "");
-        if (this.strategy.setConnectionSecret) {
+        if ("setConnectionSecret" in this.strategy && typeof this.strategy.setConnectionSecret === "function") {
           this.strategy.setConnectionSecret(secret);
         }
       }
-      return new_MsgResponseOK(id, [k, v]);
+      return new_MsgResponseOK2(id, [k, v]);
     };
   }
   /**

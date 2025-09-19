@@ -1,4 +1,4 @@
-import { MsgWrapper } from './types.js';
+import { MsgWrapper, BaseConnection } from './types.js';
 
 /**
  * Base communication strategy interface
@@ -70,14 +70,14 @@ export interface ServerStrategy extends CommunicationStrategy {
    * Handle a new connection
    * @param connection - The connection to handle
    */
-  handleConnection(connection: any): void;
+  handleConnection(connection: BaseConnection): void;
   
   /**
    * Broadcast a message to all connections
    * @param message - The message to broadcast
    * @param filter - Optional filter function to determine which connections receive the message
    */
-  broadcast(message: MsgWrapper, filter?: (conn: any) => boolean): void;
+  broadcast(message: MsgWrapper, filter?: (conn: BaseConnection) => boolean): void;
 }
 
 /**

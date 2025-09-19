@@ -94,7 +94,7 @@ export class WebSocketStrategy implements ServerStrategy {
     this.setupSocketHandlers();
   }
 
-  broadcast(message: MsgWrapper, filter?: (conn: any) => boolean): void {
+  broadcast(message: MsgWrapper, filter?: (conn: WebSocket) => boolean): void {
     if (!filter || filter(this.socket)) {
       this.send(message);
     }

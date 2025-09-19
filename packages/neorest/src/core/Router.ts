@@ -639,9 +639,9 @@ export class Router {
   public async executeHttpRoute(
     verb: 'GET' | 'POST' | 'DELETE',
     path: string,
-    data: any,
+    data: Payload,
     headers: Record<string, string> = {},
-  ): Promise<{ status: number; body: any; contentType?: string }> {
+  ): Promise<{ status: number; body: Payload; contentType?: string }> {
     // Create a synthetic sender connection that is not registered in this.connections.
     // This allows handlers that pass ctx.sender to broadcast exclusion to work without errors,
     // though no actual exclusion will occur since the synthetic connection is not tracked.

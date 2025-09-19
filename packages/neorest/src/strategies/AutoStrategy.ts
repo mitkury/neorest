@@ -48,8 +48,16 @@ export class AutoStrategy implements ClientStrategy {
   }
 
   disconnect(): void {
-    try { this.ws?.disconnect(); } catch {}
-    try { this.http.disconnect(); } catch {}
+    try { 
+      this.ws?.disconnect(); 
+    } catch (error) {
+      console.debug("Error disconnecting WebSocket:", error);
+    }
+    try { 
+      this.http.disconnect(); 
+    } catch (error) {
+      console.debug("Error disconnecting HTTP:", error);
+    }
     this.connectionInfo.status = 'disconnected';
   }
 
@@ -60,8 +68,9 @@ export class AutoStrategy implements ClientStrategy {
         this.ws.send(message);
         this.connectionInfo.type = 'websocket';
         return;
-      } catch (e) {
-        // fallback to HTTP
+      } catch (error) {
+        // WebSocket send failed, fallback to HTTP
+        console.debug("WebSocket send failed, falling back to HTTP:", error);
       }
     }
 

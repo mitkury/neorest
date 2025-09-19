@@ -14,6 +14,15 @@ export type SendAndForgetMsgID = -1;
 export type ConnectionSecret = string;
 
 /**
+ * Base connection interface for server strategies
+ */
+export interface BaseConnection {
+  send(message: MsgWrapper): void;
+  isConnected(): boolean;
+  disconnect(): void;
+}
+
+/**
  * Payload types that can be sent in messages
  */
 export type Payload = object | string | number | boolean | undefined | null | object[] | string[] | number[] | boolean[];
