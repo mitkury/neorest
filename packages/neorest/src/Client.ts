@@ -26,13 +26,14 @@ export class Client {
       throw new Error("URL is required to create a client connection");
     }
     
-    // Generate a secret for this connection
-    const secret = newConnectionSecret();
+    // Check if URL already has a secret parameter
+    const urlObj = new URL(url);
+    const existingSecret = urlObj.searchParams.get('secret');
     
-    // Add secret to URL for WebSocket connections
     let connectionUrl = url;
-    if (strategyType === 'websocket' || (strategyType === 'auto' && url.startsWith('ws'))) {
-      const urlObj = new URL(url);
+    if (!existingSecret && (strategyType === 'websocket' || (strategyType === 'auto' && url.startsWith('ws')))) {
+      // Generate a secret for this connection only if none exists
+      const secret = newConnectionSecret();
       urlObj.searchParams.set('secret', secret);
       connectionUrl = urlObj.toString();
     }

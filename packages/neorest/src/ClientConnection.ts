@@ -46,9 +46,18 @@ export class ClientConnection extends ConnectionBase {
   constructor(strategy: CommunicationStrategy, options?: ConnectionOptions) {
     super(strategy);
     
-    // Generate a secret for this connection
-    const secret = newConnectionSecret();
-    this.setHeader('secret', secret);
+    // Extract secret from strategy URL if available, otherwise generate one
+    const connectionInfo = strategy.getConnectionInfo();
+    const urlObj = new URL(connectionInfo.url);
+    const existingSecret = urlObj.searchParams.get('secret');
+    
+    if (existingSecret) {
+      this.setHeader('secret', existingSecret);
+    } else {
+      // Generate a secret for this connection
+      const secret = newConnectionSecret();
+      this.setHeader('secret', secret);
+    }
     
     this.onClientConnect = () => {};
     
@@ -79,20 +88,24 @@ export class ClientConnection extends ConnectionBase {
     // Close existing connection
     this.close();
     
-    // Generate a secret for this connection
-    const secret = newConnectionSecret();
-    this.setHeader('secret', secret);
-    
     // Create new strategy
     const type = strategyType || this.getStrategyType();
     
-    // Add secret to URL for WebSocket connections
+    // Check if URL already has a secret parameter
+    const urlObj = new URL(url);
+    const existingSecret = urlObj.searchParams.get('secret');
+    
     let connectionUrl = url;
-    if (type === 'websocket' || (type === 'auto' && url.startsWith('ws'))) {
-      const urlObj = new URL(url);
+    if (!existingSecret && (type === 'websocket' || (type === 'auto' && url.startsWith('ws')))) {
+      // Generate a secret for this connection only if none exists
+      const secret = newConnectionSecret();
       urlObj.searchParams.set('secret', secret);
       connectionUrl = urlObj.toString();
+      this.setHeader('secret', secret);
+    } else if (existingSecret) {
+      this.setHeader('secret', existingSecret);
     }
+    
     const strategy = createStrategy(type, connectionUrl);
     
     // Set the new strategy
