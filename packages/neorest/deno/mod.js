@@ -1,19 +1,5 @@
-var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
-  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
-}) : x)(function(x) {
-  if (typeof require !== "undefined") return require.apply(this, arguments);
-  throw Error('Dynamic require of "' + x + '" is not supported');
-});
-
 // src/core/types.ts
 var DATA_SET = "set";
-function msg_ConnDataSet(key, value) {
-  return {
-    type: DATA_SET,
-    key,
-    value
-  };
-}
 var PING = "ping";
 var ON_ROUTE = "on";
 function new_MsgSubscribeToRoute(route) {
@@ -499,31 +485,6 @@ _ConnectionBase.RESEND_NOT_ANSWERED_MESSAGES_AFTER_MS = 3e3;
 _ConnectionBase.SEND_LIMIT_PER_SEC = 100;
 var ConnectionBase = _ConnectionBase;
 
-// src/core/utils/connectionSecret.ts
-function generateSecret(length) {
-  const array = new Uint8Array(length);
-  if (typeof window !== "undefined" && window.crypto) {
-    window.crypto.getRandomValues(array);
-  } else if (typeof __require !== "undefined") {
-    try {
-      const crypto = __require("crypto");
-      crypto.randomFillSync(array);
-    } catch (e) {
-      for (let i = 0; i < length; i++) {
-        array[i] = Math.floor(Math.random() * 256);
-      }
-    }
-  } else {
-    for (let i = 0; i < length; i++) {
-      array[i] = Math.floor(Math.random() * 256);
-    }
-  }
-  return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-function newConnectionSecret() {
-  return generateSecret(32);
-}
-
 // src/strategies/WebSocketStrategy.ts
 var WebSocketStrategy = class {
   /**
@@ -729,8 +690,8 @@ var HttpStrategy = class {
     this.openCallback = null;
     this.pollInterval = null;
     this.authData = {};
-    this.pollDelay = 1e3;
-    // 1 second
+    this.pollDelay = 100;
+    // 100 ms for faster responsiveness in tests
     this.pollFailures = 0;
     this.maxPollFailures = 3;
     this.clientId = null;
@@ -956,9 +917,7 @@ var AutoStrategy = class {
     if (this.closeCallback) this.http.onClose(() => this.handleUnderlyingClose("http"));
     if (this.openCallback) this.http.onOpen(() => this.handleUnderlyingOpen("http"));
     if (this.openCallback) this.openCallback();
-    setTimeout(() => {
-      void this.tryUpgradeToWebSocket();
-    }, 100);
+    this.waitForSecretAndUpgrade();
   }
   disconnect() {
     try {
@@ -1041,6 +1000,21 @@ var AutoStrategy = class {
     } catch (e) {
     }
   }
+  waitForSecretAndUpgrade() {
+    const start = Date.now();
+    const maxWaitMs = 2e3;
+    const tick = () => {
+      if (this.connectionSecret) {
+        void this.tryUpgradeToWebSocket();
+        return;
+      }
+      if (Date.now() - start > maxWaitMs) {
+        return;
+      }
+      setTimeout(tick, 50);
+    };
+    setTimeout(tick, 50);
+  }
   handleUnderlyingOpen(kind) {
     if (kind === "ws") {
       this.connectionInfo.type = "websocket";
@@ -1095,18 +1069,7 @@ var ClientConnection = class extends ConnectionBase {
      */
     this.onClientConnect = () => {
     };
-    this.setHeader("secret", newConnectionSecret());
-    if (strategy.setConnectionSecret) {
-      const secret = this.getSecret();
-      if (secret) {
-        strategy.setConnectionSecret(secret);
-      }
-    }
     this.onClientConnect = () => {
-      const secret = this.getSecret();
-      if (secret) {
-        this.postAndForget(msg_ConnDataSet("secret", secret));
-      }
     };
     this.reconnectOptions = {
       maxAttempts: 10,
@@ -1128,13 +1091,6 @@ var ClientConnection = class extends ConnectionBase {
     this.close();
     const type = strategyType || this.getStrategyType();
     const strategy = createStrategy(type, url);
-    if (type === "auto" && strategy.setConnectionSecret) {
-      const secret = this.getSecret();
-      console.log(`ClientConnection.setUrl: setting secret on auto strategy: ${secret}`);
-      if (secret) {
-        strategy.setConnectionSecret(secret);
-      }
-    }
     this.setStrategy(strategy);
     await this.connect();
   }
@@ -1307,11 +1263,27 @@ var ClientConnection = class extends ConnectionBase {
       const routeMsg = msg;
       const sub = this.subscribedRoutes[routeMsg.route];
       if (sub) {
+        try {
+          console.log(`[Client] received route=${routeMsg.route}`);
+        } catch {
+        }
         const action = routeMsg.verb;
         sub({ data: routeMsg.data, action });
       }
       return new_MsgResponseOK(_, "ok");
     });
+    this.messageHandlers["set"] = (id, msg) => {
+      const k = msg.key;
+      const v = msg.value;
+      this.headers[k] = v;
+      if (k === "secret") {
+        const secret = String(v || "");
+        if (this.strategy.setConnectionSecret) {
+          this.strategy.setConnectionSecret(secret);
+        }
+      }
+      return new_MsgResponseOK(id, [k, v]);
+    };
   }
   /**
    * Schedule a reconnection attempt
@@ -1335,13 +1307,6 @@ var ClientConnection = class extends ConnectionBase {
     try {
       const strategyType = this.getStrategyType();
       const strategy = createStrategy(strategyType, this.url);
-      if (strategyType === "auto" && strategy.setConnectionSecret) {
-        const secret = this.getSecret();
-        console.log(`ClientConnection.reconnect: setting secret on auto strategy: ${secret}`);
-        if (secret) {
-          strategy.setConnectionSecret(secret);
-        }
-      }
       this.setStrategy(strategy);
       await this.connect();
       this.resubscribeToRoutes();

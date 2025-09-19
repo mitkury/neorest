@@ -309,6 +309,7 @@ export class ClientConnection extends ConnectionBase {
       const sub = this.subscribedRoutes[routeMsg.route];
       
       if (sub) {
+        try { console.log(`[Client] received route=${routeMsg.route}`); } catch {}
         const action = routeMsg.verb as "POST" | "DELETE";
         sub({ data: routeMsg.data, action: action });
       }
