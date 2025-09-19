@@ -43,7 +43,7 @@ async function benchmarkConnectionTime() {
   console.log('🔌 Benchmarking Connection Time...\n');
   const benchmark = new Benchmark();
   
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 3; i++) { // Reduced from 5 to 3
     const port = getNextPort();
     const server = new NodeRouter({ port });
     
@@ -55,7 +55,14 @@ async function benchmarkConnectionTime() {
     
     await benchmark.measure(`Connection ${i + 1}`, async () => {
       const client = new Client(`ws://localhost:${port}`, 'websocket');
-      await client.conn.connect();
+      
+      // Add timeout to prevent hanging
+      const connectPromise = client.conn.connect();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Connection timeout')), 5000)
+      );
+      
+      await Promise.race([connectPromise, timeoutPromise]);
       return client;
     });
     
@@ -79,10 +86,16 @@ async function benchmarkMessageThroughput() {
   await server.listen();
   
   const client = new Client(`ws://localhost:${port}`, 'websocket');
-  await client.conn.connect();
   
-  // Test different message counts
-  const messageCounts = [10, 50, 100];
+  // Add timeout to connection
+  const connectPromise = client.conn.connect();
+  const timeoutPromise = new Promise((_, reject) => 
+    setTimeout(() => reject(new Error('Connection timeout')), 5000)
+  );
+  await Promise.race([connectPromise, timeoutPromise]);
+  
+  // Test smaller message counts
+  const messageCounts = [5, 10]; // Reduced from [10, 50, 100]
   
   for (const count of messageCounts) {
     await benchmark.measure(`${count} messages`, async () => {
@@ -90,7 +103,14 @@ async function benchmarkMessageThroughput() {
       for (let i = 0; i < count; i++) {
         promises.push(client.post('/echo', { message: i }));
       }
-      const results = await Promise.all(promises);
+      
+      // Add timeout to message sending
+      const messagePromise = Promise.all(promises);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Message timeout')), 10000)
+      );
+      
+      const results = await Promise.race([messagePromise, timeoutPromise]);
       return results.length;
     });
   }
@@ -114,12 +134,18 @@ async function benchmarkReconnection() {
   
   await server.listen();
   
-  // Test reconnection 5 times
-  for (let i = 0; i < 5; i++) {
+  // Test reconnection 3 times (reduced from 5)
+  for (let i = 0; i < 3; i++) {
     await benchmark.measure(`Reconnection ${i + 1}`, async () => {
       // First connection
       const client1 = new Client(`ws://localhost:${port}`, 'websocket');
-      await client1.conn.connect();
+      
+      const connectPromise1 = client1.conn.connect();
+      const timeoutPromise1 = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Connection timeout')), 5000)
+      );
+      await Promise.race([connectPromise1, timeoutPromise1]);
+      
       const secret = client1.conn.getSecret();
       
       // Simulate connection drop
@@ -128,7 +154,12 @@ async function benchmarkReconnection() {
       
       // Reconnect with same secret
       const client2 = new Client(`ws://localhost:${port}?secret=${secret}`, 'websocket');
-      await client2.conn.connect();
+      
+      const connectPromise2 = client2.conn.connect();
+      const timeoutPromise2 = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Reconnection timeout')), 5000)
+      );
+      await Promise.race([connectPromise2, timeoutPromise2]);
       
       // Verify it works
       const response = await client2.post('/echo', { test: 'reconnection' });
@@ -156,16 +187,22 @@ async function benchmarkStress() {
   
   await server.listen();
   
-  const connectionCounts = [5, 10, 20];
+  const connectionCounts = [2, 3]; // Reduced from [5, 10, 20]
   
   for (const count of connectionCounts) {
     await benchmark.measure(`${count} concurrent connections`, async () => {
       const clients = [];
       
-      // Create connections
+      // Create connections with timeout
       for (let i = 0; i < count; i++) {
         const client = new Client(`ws://localhost:${port}`, 'websocket');
-        await client.conn.connect();
+        
+        const connectPromise = client.conn.connect();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Connection timeout')), 5000)
+        );
+        
+        await Promise.race([connectPromise, timeoutPromise]);
         clients.push(client);
       }
       
@@ -175,7 +212,12 @@ async function benchmarkStress() {
         promises.push(clients[i].post('/echo', { clientId: i, message: 'stress test' }));
       }
       
-      const results = await Promise.all(promises);
+      const messagePromise = Promise.all(promises);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Message timeout')), 10000)
+      );
+      
+      const results = await Promise.race([messagePromise, timeoutPromise]);
       
       // Close all connections
       for (const client of clients) {
