@@ -263,12 +263,7 @@ export class Router {
     conn.setHeader('secret', secret);
     this.connections[secret] = conn;
     
-    // Inform client of its secret via DATA_SET message
-    try {
-      conn.postAndForget(msg_ConnDataSet('secret', secret));
-    } catch (error) {
-      // Connection might not be ready yet, this is handled by the client
-    }
+    // Secret is already available in the connection URL, no need to send DATA_SET message
     
     // Set up connection handlers
     conn.onRouteMessage = async (msgId: MsgID, msg: MsgRoute) => {

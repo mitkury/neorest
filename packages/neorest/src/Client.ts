@@ -3,7 +3,8 @@ import {
   Payload, 
   RouteVerb,
   BroadcastEvent,
-  ConnectionOptions
+  ConnectionOptions,
+  newConnectionSecret
 } from './core';
 import { ClientConnection } from './ClientConnection';
 import { createStrategy } from './strategies/index';
@@ -25,7 +26,18 @@ export class Client {
       throw new Error("URL is required to create a client connection");
     }
     
-    const strategy = createStrategy(strategyType, url);
+    // Generate a secret for this connection
+    const secret = newConnectionSecret();
+    
+    // Add secret to URL for WebSocket connections
+    let connectionUrl = url;
+    if (strategyType === 'websocket' || (strategyType === 'auto' && url.startsWith('ws'))) {
+      const urlObj = new URL(url);
+      urlObj.searchParams.set('secret', secret);
+      connectionUrl = urlObj.toString();
+    }
+    
+    const strategy = createStrategy(strategyType, connectionUrl);
     this.conn = new ClientConnection(strategy, options);
   }
 

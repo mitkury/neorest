@@ -46,7 +46,10 @@ export class ClientConnection extends ConnectionBase {
   constructor(strategy: CommunicationStrategy, options?: ConnectionOptions) {
     super(strategy);
     
-    // Do not pre-generate a secret; wait for server-issued secret via DATA_SET
+    // Generate a secret for this connection
+    const secret = newConnectionSecret();
+    this.setHeader('secret', secret);
+    
     this.onClientConnect = () => {};
     
     // Set up reconnect options
@@ -76,11 +79,21 @@ export class ClientConnection extends ConnectionBase {
     // Close existing connection
     this.close();
     
+    // Generate a secret for this connection
+    const secret = newConnectionSecret();
+    this.setHeader('secret', secret);
+    
     // Create new strategy
     const type = strategyType || this.getStrategyType();
-    const strategy = createStrategy(type, url);
     
-    // Secret will be propagated once received from server
+    // Add secret to URL for WebSocket connections
+    let connectionUrl = url;
+    if (type === 'websocket' || (type === 'auto' && url.startsWith('ws'))) {
+      const urlObj = new URL(url);
+      urlObj.searchParams.set('secret', secret);
+      connectionUrl = urlObj.toString();
+    }
+    const strategy = createStrategy(type, connectionUrl);
     
     // Set the new strategy
     this.setStrategy(strategy);
@@ -318,21 +331,7 @@ export class ClientConnection extends ConnectionBase {
       return new_MsgResponseOK(_, "ok");
     });
 
-    // Intercept DATA_SET from server to capture and propagate secret
-    this.messageHandlers['set'] = (id: MsgID, msg: MsgDataSet) => {
-      const k = msg.key;
-      const v = msg.value;
-      this.headers[k] = v;
-      if (k === 'secret') {
-        const secret = String(v || '');
-        // Propagate to AutoStrategy for WS upgrade URL if supported
-        if ('setConnectionSecret' in this.strategy && typeof this.strategy.setConnectionSecret === 'function') {
-          this.strategy.setConnectionSecret(secret);
-        }
-      }
-      // Don't send a response for DATA_SET messages from server
-      return null;
-    };
+    // DATA_SET messages are no longer used - secret is embedded in connection URL
   }
 
   /**
