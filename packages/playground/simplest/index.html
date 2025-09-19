@@ -150,8 +150,8 @@
     </div>
 
     <script type="module">
-        // Import Neorest client
-        import { Client } from 'https://esm.sh/neorest@0.1.0';
+        // Import Neorest; Vite will pick the browser export
+        import { Client } from 'neorest';
 
         let client = null;
         let isConnected = false;
@@ -307,7 +307,7 @@
             }
             try {
                 log('📡 Subscribing to /counter...');
-                await client.subscribe('/counter', (event) => {
+                await client.on('/counter', (event) => {
                     log(`📡 Counter update: ${JSON.stringify(event.data)}`, 'success');
                     document.getElementById('counter').textContent = event.data.data.count;
                 });
@@ -324,7 +324,7 @@
             }
             try {
                 log('📡 Unsubscribing from /counter...');
-                await client.unsubscribe('/counter');
+                await client.off('/counter');
                 log('✅ Unsubscribed from counter updates', 'success');
             } catch (error) {
                 log(`❌ Counter unsubscription failed: ${error.message}`, 'error');
@@ -338,7 +338,7 @@
             }
             try {
                 log('📡 Subscribing to /messages...');
-                await client.subscribe('/messages', (event) => {
+                await client.on('/messages', (event) => {
                     log(`📡 Message received: ${JSON.stringify(event.data)}`, 'success');
                 });
                 log('✅ Subscribed to messages', 'success');
@@ -354,7 +354,7 @@
             }
             try {
                 log('📡 Unsubscribing from /messages...');
-                await client.unsubscribe('/messages');
+                await client.off('/messages');
                 log('✅ Unsubscribed from messages', 'success');
             } catch (error) {
                 log(`❌ Message unsubscription failed: ${error.message}`, 'error');

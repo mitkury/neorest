@@ -11,7 +11,9 @@
     "start": "node dist/server.js"
   },
   "dependencies": {
-    "neorest": "file:../../neorest"
+    "@types/ws": "^8.18.1",
+    "neorest": "file:../../neorest",
+    "ws": "^8.18.3"
   },
   "overrides": {
     "neorest": "file:../../neorest"

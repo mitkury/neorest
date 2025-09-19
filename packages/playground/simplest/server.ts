@@ -8,6 +8,10 @@ router.onGet('/ping', (ctx) => {
   ctx.response = { message: 'pong', timestamp: Date.now() };
 });
 
+router.onGet('/user/:name', (ctx) => {
+  ctx.response = { message: `Hello, ${ctx.params.name}!`, timestamp: Date.now() };
+});
+
 // Simple POST route - accessible via HTTP and WebSocket
 router.onPost('/echo', (ctx) => {
   ctx.response = { 
@@ -44,7 +48,7 @@ router.onValidateBroadcast('/messages', () => true);
 router.onValidateBroadcast('/counter', () => true);
 
 // Start the server
-console.log('🚀 Starting Neorest server on http://localhost:3000');
+console.log('🚀 Starting Chat server on http://localhost:3000');
 console.log('📡 WebSocket available at ws://localhost:3000');
 console.log('🌐 HTTP routes: GET /ping, POST /echo, GET /counter, POST /counter/increment');
 console.log('📡 Subscribe to: /messages, /counter');
