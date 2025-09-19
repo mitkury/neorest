@@ -222,24 +222,24 @@ export class Router {
     reconnectSecret: ConnectionSecret | null = null
   ): Promise<ServerConnection> {
     if (reconnectSecret && (this.connections[reconnectSecret] || this.pendingRemovals[reconnectSecret])) {
-      // Handle duplicate connection - replace the existing one
+      // Handle duplicate connection by reusing existing connection instance
+      // to preserve subscriptions and state.
       const existingConn = this.connections[reconnectSecret];
-      
+
       // If there's a pending removal, cancel it
       if (this.pendingRemovals[reconnectSecret]) {
         clearTimeout(this.pendingRemovals[reconnectSecret]);
         delete this.pendingRemovals[reconnectSecret];
       }
-      
-      // Clean up the old connection's subscriptions immediately
-      this.cleanupConnectionSubscriptions(reconnectSecret);
-      
-      // Create and set up the new connection
+
+      if (existingConn) {
+        // Update the communication strategy on the same connection object
+        await existingConn.updateStrategy(strategy);
+        return existingConn;
+      }
+
+      // If we don't have existingConn yet (e.g., was pending removal), create anew
       const conn = this.createAndSetupConnection(strategy, reconnectSecret);
-      
-      // Close the existing connection
-      existingConn.close();
-      
       return conn;
     } else {
       // Create a new connection with a fresh secret
@@ -493,23 +493,29 @@ export class Router {
       throw new Error(`Connection with id ${connSecret} does not exist`);
     }
 
-    // Find the most specific matching route and subscribe only to that
-    let best: { route: OutRouteLayer; params: string[] } | null = null;
+    // Subscribe to all matching out routes (internalBroadcast will ensure only
+    // one delivery using the most specific route), avoiding duplicates.
     for (const route of this.outRoutes) {
       const m = route.match(path);
-      if (m) {
-        const params = Object.values(m.params);
-        if (!best || route.specificity > best.route.specificity) {
-          best = { route, params };
-        }
-      }
-    }
+      if (!m) continue;
+      const params = Object.values(m.params);
 
-    if (best) {
-      best.route.listeners.push({
-        conn: connSecret,
-        params: best.params,
+      const alreadySubscribed = route.listeners.some((l) => {
+        if (l.conn !== connSecret) return false;
+        if (l.params.length !== params.length) return false;
+        for (let i = 0; i < l.params.length; i++) {
+          if (l.params[i] !== params[i]) return false;
+        }
+        return true;
       });
+
+      if (!alreadySubscribed) {
+        try { console.log(`[Router] subscribe ${connSecret} -> ${route.route} params=${JSON.stringify(params)}`); } catch {}
+        route.listeners.push({
+          conn: connSecret,
+          params,
+        });
+      }
     }
   }
 
@@ -546,41 +552,48 @@ export class Router {
     exceptConn?: ServerConnection,
   ): void {
     const verb = action as RouteVerb;
+    // Identify the most specific matching out route and broadcast only once.
+    let best: { layer: OutRouteLayer; match: ReturnType<MatchFunction> } | null = null;
+    for (const layer of this.outRoutes) {
+      const m = layer.match(route);
+      if (!m) continue;
+      if (!best || layer.specificity > best.layer.specificity) {
+        best = { layer, match: m };
+      }
+    }
 
-    for (const r of this.outRoutes) {
-      const match = r.match(route);
-      if (match) {
-        const paramsArr = Object.values(match.params);
-        for (const listener of r.listeners) {
-          const conn = this.connections[listener.conn];
-          if (conn !== exceptConn) {
-            // Make sure the params match.
-            // That means that the listener is subscribed to the exact same route
-            let paramsMatch = true;
-            for (let i = 0; i < listener.params.length; i++) {
-              if (listener.params[i] !== paramsArr[i]) {
-                paramsMatch = false;
-                break;
-              }
-            }
+    if (!best) return;
 
-            if (paramsMatch) {
-              const isValidForListener = r.validate(
-                conn,
-                match.params as Record<string, string>,
-              );
-              if (isValidForListener instanceof Promise) {
-                isValidForListener.then((isValid) => {
-                  if (isValid) {
-                    conn.sendToRoute(route, verb, payload);
-                  }
-                });
-              } else if (isValidForListener) {
-                conn.sendToRoute(route, verb, payload);
-              }
-            }
+    try {
+      console.log(`[Router] broadcast route=${route} using=${best.layer.route} listeners=${best.layer.listeners.length}`);
+    } catch {}
+
+    const paramsArr = Object.values(best.match.params);
+    for (const listener of best.layer.listeners) {
+      const conn = this.connections[listener.conn];
+      if (!conn || conn === exceptConn) continue;
+
+      // Ensure listener params match broadcast params
+      let paramsMatch = listener.params.length === paramsArr.length;
+      for (let i = 0; paramsMatch && i < listener.params.length; i++) {
+        if (listener.params[i] !== paramsArr[i]) paramsMatch = false;
+      }
+      if (!paramsMatch) continue;
+
+      const isValidForListener = best.layer.validate(
+        conn,
+        best.match.params as Record<string, string>,
+      );
+      if (isValidForListener instanceof Promise) {
+        isValidForListener.then((isValid) => {
+          if (isValid) {
+            try { console.log(`[Router] deliver to ${listener.conn} route=${route}`); } catch {}
+            conn.sendToRoute(route, verb, payload);
           }
-        }
+        });
+      } else if (isValidForListener) {
+        try { console.log(`[Router] deliver to ${listener.conn} route=${route}`); } catch {}
+        conn.sendToRoute(route, verb, payload);
       }
     }
   }

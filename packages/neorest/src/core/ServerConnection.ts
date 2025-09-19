@@ -18,6 +18,7 @@ import {
   MsgDataSet
 } from './types';
 import { CommunicationStrategy, ServerStrategy } from './CommunicationStrategy';
+import { msg_ConnDataSet } from './types';
 
 /**
  * Server-side connection implementation
@@ -98,6 +99,21 @@ export class ServerConnection extends ConnectionBase {
     
     // Update to the new strategy (this will automatically connect)
     await this.setStrategy(newStrategy);
+
+    // Re-send server-managed secret to the client over the new transport
+    // so that fresh client instances can learn it immediately.
+    const currentSecret = this.getSecret();
+    if (currentSecret) {
+      try {
+        this.postAndExpectResponse(msg_ConnDataSet('secret', currentSecret));
+      } catch {}
+    }
+
+    // Clear deduplication and pending ack state so that new client-side
+    // message IDs (which typically start from 0) are not mistaken for
+    // duplicates of the previous transport session.
+    (this as any).receivedMessages = [];
+    (this as any).messagesToAck = [];
   }
 
   /**

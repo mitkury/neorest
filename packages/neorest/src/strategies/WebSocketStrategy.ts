@@ -37,7 +37,6 @@ export class WebSocketStrategy implements ClientStrategy {
       }
       connectionUrl = urlObj.toString();
     }
-    
     // Create WebSocket
     this.socket = new WebSocket(connectionUrl);
     this.connectionInfo.status = 'connecting';

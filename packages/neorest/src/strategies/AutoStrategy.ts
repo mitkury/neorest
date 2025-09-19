@@ -42,10 +42,9 @@ export class AutoStrategy implements ClientStrategy {
     // but ensure the consumer's onOpen is invoked at least once
     if (this.openCallback) this.openCallback();
 
-    // 2) Wait a bit for the connection to be fully established, then try WS upgrade
-    setTimeout(() => {
-      void this.tryUpgradeToWebSocket();
-    }, 100);
+    // 2) Attempt WS upgrade only after we know the server-issued secret,
+    // so that the server can associate the WS transport with the same session.
+    this.waitForSecretAndUpgrade();
   }
 
   disconnect(): void {
@@ -148,6 +147,23 @@ export class AutoStrategy implements ClientStrategy {
     } catch (e) {
       // WS not available or failed; continue on HTTP silently
     }
+  }
+
+  private waitForSecretAndUpgrade(): void {
+    const start = Date.now();
+    const maxWaitMs = 2000;
+    const tick = () => {
+      if (this.connectionSecret) {
+        void this.tryUpgradeToWebSocket();
+        return;
+      }
+      if (Date.now() - start > maxWaitMs) {
+        // Give up on waiting; stay on HTTP (will retry later on reconnects if any)
+        return;
+      }
+      setTimeout(tick, 50);
+    };
+    setTimeout(tick, 50);
   }
 
   private handleUnderlyingOpen(kind: 'http' | 'ws'): void {

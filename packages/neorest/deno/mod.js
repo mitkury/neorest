@@ -690,8 +690,8 @@ var HttpStrategy = class {
     this.openCallback = null;
     this.pollInterval = null;
     this.authData = {};
-    this.pollDelay = 1e3;
-    // 1 second
+    this.pollDelay = 100;
+    // 100 ms for faster responsiveness in tests
     this.pollFailures = 0;
     this.maxPollFailures = 3;
     this.clientId = null;
@@ -917,9 +917,7 @@ var AutoStrategy = class {
     if (this.closeCallback) this.http.onClose(() => this.handleUnderlyingClose("http"));
     if (this.openCallback) this.http.onOpen(() => this.handleUnderlyingOpen("http"));
     if (this.openCallback) this.openCallback();
-    setTimeout(() => {
-      void this.tryUpgradeToWebSocket();
-    }, 100);
+    this.waitForSecretAndUpgrade();
   }
   disconnect() {
     try {
@@ -1001,6 +999,21 @@ var AutoStrategy = class {
       if (this.openCallback) this.openCallback();
     } catch (e) {
     }
+  }
+  waitForSecretAndUpgrade() {
+    const start = Date.now();
+    const maxWaitMs = 2e3;
+    const tick = () => {
+      if (this.connectionSecret) {
+        void this.tryUpgradeToWebSocket();
+        return;
+      }
+      if (Date.now() - start > maxWaitMs) {
+        return;
+      }
+      setTimeout(tick, 50);
+    };
+    setTimeout(tick, 50);
   }
   handleUnderlyingOpen(kind) {
     if (kind === "ws") {
@@ -1250,6 +1263,10 @@ var ClientConnection = class extends ConnectionBase {
       const routeMsg = msg;
       const sub = this.subscribedRoutes[routeMsg.route];
       if (sub) {
+        try {
+          console.log(`[Client] received route=${routeMsg.route}`);
+        } catch {
+        }
         const action = routeMsg.verb;
         sub({ data: routeMsg.data, action });
       }
