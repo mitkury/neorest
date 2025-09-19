@@ -330,7 +330,8 @@ export class ClientConnection extends ConnectionBase {
           this.strategy.setConnectionSecret(secret);
         }
       }
-      return new_MsgResponseOK(id, [k, v]);
+      // Don't send a response for DATA_SET messages from server
+      return null;
     };
   }
 

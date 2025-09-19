@@ -265,7 +265,7 @@ export class Router {
     
     // Inform client of its secret via DATA_SET message
     try {
-      conn.postAndExpectResponse(msg_ConnDataSet('secret', secret));
+      conn.postAndForget(msg_ConnDataSet('secret', secret));
     } catch (error) {
       // Connection might not be ready yet, this is handled by the client
     }

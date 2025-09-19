@@ -105,7 +105,7 @@ export class ServerConnection extends ConnectionBase {
     const currentSecret = this.getSecret();
     if (currentSecret) {
       try {
-        this.postAndExpectResponse(msg_ConnDataSet('secret', currentSecret));
+        this.postAndForget(msg_ConnDataSet('secret', currentSecret));
       } catch (error) {
         // Connection might not be ready yet, this is handled by the client
         console.debug("Failed to send secret to client:", error);
