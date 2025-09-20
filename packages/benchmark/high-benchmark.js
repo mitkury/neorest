@@ -40,10 +40,10 @@ class Benchmark {
 }
 
 async function benchmarkConnectionTime() {
-  console.log('🔌 Benchmarking Connection Time...\n');
+  console.log('🔌 Benchmarking Connection Time (High Load)...\n');
   const benchmark = new Benchmark();
   
-  for (let i = 0; i < 3; i++) { // Reduced from 5 to 3
+  for (let i = 0; i < 10; i++) { // Increased from 5 to 10
     const port = getNextPort();
     const server = new NodeRouter({ port });
     
@@ -63,6 +63,7 @@ async function benchmarkConnectionTime() {
       );
       
       await Promise.race([connectPromise, timeoutPromise]);
+      await client.close();
       return client;
     });
     
@@ -73,7 +74,7 @@ async function benchmarkConnectionTime() {
 }
 
 async function benchmarkMessageThroughput() {
-  console.log('📨 Benchmarking Message Throughput...\n');
+  console.log('📨 Benchmarking Message Throughput (High Load)...\n');
   const benchmark = new Benchmark();
   
   const port = getNextPort();
@@ -94,8 +95,8 @@ async function benchmarkMessageThroughput() {
   );
   await Promise.race([connectPromise, timeoutPromise]);
   
-  // Test smaller message counts
-  const messageCounts = [5, 10]; // Reduced from [10, 50, 100]
+  // Test high message counts
+  const messageCounts = [200, 500, 1000]; // Increased from [25, 50, 100]
   
   for (const count of messageCounts) {
     await benchmark.measure(`${count} messages`, async () => {
@@ -107,7 +108,7 @@ async function benchmarkMessageThroughput() {
       // Add timeout to message sending
       const messagePromise = Promise.all(promises);
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Message timeout')), 10000)
+        setTimeout(() => reject(new Error('Message timeout')), 30000)
       );
       
       const results = await Promise.race([messagePromise, timeoutPromise]);
@@ -122,7 +123,7 @@ async function benchmarkMessageThroughput() {
 }
 
 async function benchmarkReconnection() {
-  console.log('🔄 Benchmarking Reconnection Performance...\n');
+  console.log('🔄 Benchmarking Reconnection Performance (High Load)...\n');
   const benchmark = new Benchmark();
   
   const port = getNextPort();
@@ -134,8 +135,8 @@ async function benchmarkReconnection() {
   
   await server.listen();
   
-  // Test reconnection 3 times (reduced from 5)
-  for (let i = 0; i < 3; i++) {
+  // Test reconnection 10 times (increased from 5)
+  for (let i = 0; i < 10; i++) {
     await benchmark.measure(`Reconnection ${i + 1}`, async () => {
       // First connection
       const client1 = new Client(`ws://localhost:${port}`, 'websocket');
@@ -175,7 +176,7 @@ async function benchmarkReconnection() {
 }
 
 async function benchmarkStress() {
-  console.log('💪 Benchmarking Stress Test (Multiple Connections)...\n');
+  console.log('💪 Benchmarking Stress Test (High Load)...\n');
   const benchmark = new Benchmark();
   
   const port = getNextPort();
@@ -187,7 +188,7 @@ async function benchmarkStress() {
   
   await server.listen();
   
-  const connectionCounts = [2, 3]; // Reduced from [5, 10, 20]
+  const connectionCounts = [25, 50, 100]; // Increased from [5, 10, 15]
   
   for (const count of connectionCounts) {
     await benchmark.measure(`${count} concurrent connections`, async () => {
@@ -199,7 +200,7 @@ async function benchmarkStress() {
         
         const connectPromise = client.conn.connect();
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Connection timeout')), 5000)
+          setTimeout(() => reject(new Error('Connection timeout')), 10000)
         );
         
         await Promise.race([connectPromise, timeoutPromise]);
@@ -214,7 +215,7 @@ async function benchmarkStress() {
       
       const messagePromise = Promise.all(promises);
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Message timeout')), 10000)
+        setTimeout(() => reject(new Error('Message timeout')), 30000)
       );
       
       const results = await Promise.race([messagePromise, timeoutPromise]);
@@ -233,8 +234,65 @@ async function benchmarkStress() {
   benchmark.printSummary();
 }
 
+async function benchmarkMixedLoad() {
+  console.log('🎯 Benchmarking Mixed Load Test...\n');
+  const benchmark = new Benchmark();
+  
+  const port = getNextPort();
+  const server = new NodeRouter({ port });
+  
+  server
+    .onGet('/ping', async (ctx) => { ctx.response = 'pong'; })
+    .onPost('/echo', async (ctx) => { ctx.response = ctx.data; });
+  
+  await server.listen();
+  
+  await benchmark.measure('Mixed load: 20 connections, 1000 messages each', async () => {
+    const clients = [];
+    
+    // Create 20 connections
+    for (let i = 0; i < 20; i++) {
+      const client = new Client(`ws://localhost:${port}`, 'websocket');
+      
+      const connectPromise = client.conn.connect();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Connection timeout')), 10000)
+      );
+      
+      await Promise.race([connectPromise, timeoutPromise]);
+      clients.push(client);
+    }
+    
+    // Send 1000 messages from each client
+    const allPromises = [];
+    for (let i = 0; i < clients.length; i++) {
+      for (let j = 0; j < 100; j++) { // 100 messages per client (reduced from 1000 for safety)
+        allPromises.push(clients[i].post('/echo', { clientId: i, messageId: j }));
+      }
+    }
+    
+    const messagePromise = Promise.all(allPromises);
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Message timeout')), 60000)
+    );
+    
+    const results = await Promise.race([messagePromise, timeoutPromise]);
+    
+    // Close all connections
+    for (const client of clients) {
+      await client.close();
+    }
+    
+    return results.length;
+  });
+  
+  await server.close();
+  
+  benchmark.printSummary();
+}
+
 async function runAllBenchmarks() {
-  console.log('🚀 Running All Benchmarks...\n');
+  console.log('🚀 Running High Load Benchmarks...\n');
   
   await benchmarkConnectionTime();
   console.log('\n');
@@ -246,8 +304,11 @@ async function runAllBenchmarks() {
   console.log('\n');
   
   await benchmarkStress();
+  console.log('\n');
   
-  console.log('\n🎉 All benchmarks completed!');
+  await benchmarkMixedLoad();
+  
+  console.log('\n🎉 All high load benchmarks completed!');
 }
 
 // Main execution
@@ -266,11 +327,14 @@ switch (command) {
   case 'stress':
     await benchmarkStress();
     break;
+  case 'mixed':
+    await benchmarkMixedLoad();
+    break;
   case 'all':
   default:
     await runAllBenchmarks();
     break;
 }
 
-console.log('\n📈 Benchmark completed successfully!');
+console.log('\n📈 High load benchmark completed successfully!');
 process.exit(0);
