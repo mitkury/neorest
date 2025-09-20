@@ -9,7 +9,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build -w neorest",
+    "build": "npm run build -w @neorest/core && npm run build -w neorest",
     "test": "npm run build && npm run test -w @neorest/tests"
   },
   "repository": {

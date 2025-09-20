@@ -77,6 +77,9 @@ export class Router {
       validateRoutes: true,
       ...options
     };
+
+    // Default: allow broadcasts to any route unless overridden
+    this.setOutRoute('/:any(.*)', () => true);
   }
 
   /**
