@@ -147,6 +147,10 @@ export class Router {
       validateRoutes: true,
       ...options
     };
+
+    // Default: allow broadcasts to any route unless a more specific validator is registered
+    // More specific routes will take precedence due to specificity ordering
+    this.setOutRoute('/:any(.*)', () => true);
   }
 
   /**
