@@ -40,10 +40,10 @@ class Benchmark {
 }
 
 async function benchmarkConnectionTime() {
-  console.log('🔌 Benchmarking Connection Time...\n');
+  console.log('🔌 Benchmarking Connection Time (Medium Load)...\n');
   const benchmark = new Benchmark();
   
-  for (let i = 0; i < 3; i++) { // Reduced from 5 to 3
+  for (let i = 0; i < 5; i++) { // Increased from 3 to 5
     const port = getNextPort();
     const server = new NodeRouter({ port });
     
@@ -63,6 +63,7 @@ async function benchmarkConnectionTime() {
       );
       
       await Promise.race([connectPromise, timeoutPromise]);
+      await client.close();
       return client;
     });
     
@@ -73,7 +74,7 @@ async function benchmarkConnectionTime() {
 }
 
 async function benchmarkMessageThroughput() {
-  console.log('📨 Benchmarking Message Throughput...\n');
+  console.log('📨 Benchmarking Message Throughput (Medium Load)...\n');
   const benchmark = new Benchmark();
   
   const port = getNextPort();
@@ -94,8 +95,8 @@ async function benchmarkMessageThroughput() {
   );
   await Promise.race([connectPromise, timeoutPromise]);
   
-  // Test smaller message counts
-  const messageCounts = [5, 10]; // Reduced from [10, 50, 100]
+  // Test medium message counts
+  const messageCounts = [25, 50, 100]; // Increased from [5, 10]
   
   for (const count of messageCounts) {
     await benchmark.measure(`${count} messages`, async () => {
@@ -107,7 +108,7 @@ async function benchmarkMessageThroughput() {
       // Add timeout to message sending
       const messagePromise = Promise.all(promises);
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Message timeout')), 10000)
+        setTimeout(() => reject(new Error('Message timeout')), 15000)
       );
       
       const results = await Promise.race([messagePromise, timeoutPromise]);
@@ -122,7 +123,7 @@ async function benchmarkMessageThroughput() {
 }
 
 async function benchmarkReconnection() {
-  console.log('🔄 Benchmarking Reconnection Performance...\n');
+  console.log('🔄 Benchmarking Reconnection Performance (Medium Load)...\n');
   const benchmark = new Benchmark();
   
   const port = getNextPort();
@@ -134,8 +135,8 @@ async function benchmarkReconnection() {
   
   await server.listen();
   
-  // Test reconnection 3 times (reduced from 5)
-  for (let i = 0; i < 3; i++) {
+  // Test reconnection 5 times (increased from 3)
+  for (let i = 0; i < 5; i++) {
     await benchmark.measure(`Reconnection ${i + 1}`, async () => {
       // First connection
       const client1 = new Client(`ws://localhost:${port}`, 'websocket');
@@ -175,7 +176,7 @@ async function benchmarkReconnection() {
 }
 
 async function benchmarkStress() {
-  console.log('💪 Benchmarking Stress Test (Multiple Connections)...\n');
+  console.log('💪 Benchmarking Stress Test (Medium Load)...\n');
   const benchmark = new Benchmark();
   
   const port = getNextPort();
@@ -187,7 +188,7 @@ async function benchmarkStress() {
   
   await server.listen();
   
-  const connectionCounts = [2, 3]; // Reduced from [5, 10, 20]
+  const connectionCounts = [5, 10, 15]; // Increased from [2, 3]
   
   for (const count of connectionCounts) {
     await benchmark.measure(`${count} concurrent connections`, async () => {
@@ -214,7 +215,7 @@ async function benchmarkStress() {
       
       const messagePromise = Promise.all(promises);
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Message timeout')), 10000)
+        setTimeout(() => reject(new Error('Message timeout')), 15000)
       );
       
       const results = await Promise.race([messagePromise, timeoutPromise]);
@@ -234,7 +235,7 @@ async function benchmarkStress() {
 }
 
 async function runAllBenchmarks() {
-  console.log('🚀 Running All Benchmarks...\n');
+  console.log('🚀 Running Medium Load Benchmarks...\n');
   
   await benchmarkConnectionTime();
   console.log('\n');
@@ -247,7 +248,7 @@ async function runAllBenchmarks() {
   
   await benchmarkStress();
   
-  console.log('\n🎉 All benchmarks completed!');
+  console.log('\n🎉 All medium load benchmarks completed!');
 }
 
 // Main execution
@@ -272,5 +273,5 @@ switch (command) {
     break;
 }
 
-console.log('\n📈 Benchmark completed successfully!');
+console.log('\n📈 Medium load benchmark completed successfully!');
 process.exit(0);
