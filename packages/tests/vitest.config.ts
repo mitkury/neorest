@@ -16,5 +16,13 @@ export default defineConfig({
     pool: 'forks',
     testTimeout: 30000,
     maxConcurrency: 1,
+    sequence: {
+      concurrent: false,
+    },
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
+    },
   },
 });

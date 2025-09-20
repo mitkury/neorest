@@ -12,8 +12,7 @@
     "stress": "node benchmark.js stress"
   },
   "dependencies": {
-    "neorest": "workspace:*",
-    "neorest/node": "workspace:*",
+    "neorest": "file:../neorest",
     "socket.io": "^4.7.5",
     "socket.io-client": "^4.7.5"
   }
