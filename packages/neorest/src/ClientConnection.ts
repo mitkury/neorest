@@ -1,7 +1,6 @@
 import { ConnectionBase } from '@neorest/core';
 import { 
   ClientStrategy, 
-  CommunicationStrategy,
   BroadcastEvent,
   ConnectionOptions,
   ReconnectOptions,
@@ -29,7 +28,7 @@ export class ClientConnection extends ConnectionBase {
   private isFullyConnected = false;
   private subscribedRoutes: Record<string, (broadcast: BroadcastEvent) => void> = {};
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private reconnectOptions: ReconnectOptions;
+  private reconnectOptions: ReconnectOptions | undefined;
   private reconnectAttempts = 0;
   private url?: string;
   private defaultRequestHeaders: Record<string, string> = {};
@@ -44,7 +43,7 @@ export class ClientConnection extends ConnectionBase {
    * @param strategy - The communication strategy to use
    * @param options - Options for the connection
    */
-  constructor(strategy: CommunicationStrategy, options?: ConnectionOptions) {
+  constructor(strategy: ClientStrategy, options?: ConnectionOptions) {
     super(strategy);
     
     // Extract secret from strategy URL if available, otherwise generate one
@@ -63,13 +62,15 @@ export class ClientConnection extends ConnectionBase {
     this.onClientConnect = () => {};
     
     // Set up reconnect options
-    this.reconnectOptions = {
-      maxAttempts: 10,
-      initialDelay: 500,
-      maxDelay: 30000,
-      factor: 1.5,
-      ...(typeof options?.reconnect === 'object' ? options.reconnect : {})
-    };
+    this.reconnectOptions = options?.reconnect === false
+      ? undefined
+      : {
+          maxAttempts: 10,
+          initialDelay: 500,
+          maxDelay: 30000,
+          factor: 1.5,
+          ...(typeof options?.reconnect === 'object' ? options.reconnect : {})
+        };
     
     // Add route message handler
     this.registerRouteMessageHandler();

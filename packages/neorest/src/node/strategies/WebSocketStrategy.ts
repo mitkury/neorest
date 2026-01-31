@@ -94,11 +94,10 @@ export class WebSocketStrategy implements ServerStrategy {
     this.setupSocketHandlers();
   }
 
-  broadcast(message: MsgWrapper, filter?: (conn: WebSocket) => boolean): void {
+  broadcast(message: MsgWrapper, filter?: (conn: WsServerSocket) => boolean): void {
     if (!filter || filter(this.socket)) {
       this.send(message);
     }
   }
 }
-
 
