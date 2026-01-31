@@ -44,7 +44,6 @@ interface MessageHandlerMap {
  */
 export abstract class ConnectionBase {
   // Configuration
-  protected static RESEND_NOT_ANSWERED_MESSAGES_AFTER_MS = 3000;
   protected static SEND_LIMIT_PER_SEC = 100;
   
   // State
@@ -205,7 +204,6 @@ export abstract class ConnectionBase {
     const alreadyReceived = needsResponse ? this.getReceivedPairById(id) : null;
     if (alreadyReceived) {
       if (alreadyReceived.response.isPending) {
-        console.log("Message is being processed");
         this.postAndForget(new_MsgGenericError(id, "Message is being processed"));
       } else {
         this.postAndForget(alreadyReceived.response.getOriginal());
