@@ -33,7 +33,6 @@
 
 ## Post-v1
 - Playwright E2E tests (packages/e2e-tests)
-- Deno adapter parity and CI job
 - Examples repo/templates
 - Performance and load testing scripts
 - Telemetry/metrics hooks

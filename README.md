@@ -21,14 +21,13 @@ npm test
 This will build the package and run unit tests that cover:
 - HTTP long-polling client ↔ Node server
 - WebSocket client ↔ Node server
-- Multi-runtime support (Node.js, Deno, Browser)
+- Multi-runtime support (Node.js, Browser)
 
 ## Multi-Runtime Support
 
 Neorest works across multiple runtimes with a single package:
 
 - **Node.js**: Server and client support
-- **Deno**: Server and client support  
 - **Browser**: Client support with WebSocket and HTTP fallback
 
 ## Package Structure
@@ -41,14 +40,10 @@ Neorest works across multiple runtimes with a single package:
 
 ## Usage
 
-### Client (Browser/Node.js/Deno)
+### Client (Browser/Node.js)
 
 ```typescript
-// Node.js/Browser
 import { Client } from 'neorest';
-
-// Deno
-import { Client } from 'npm:neorest';
 
 // Create a client
 const client = new Client('ws://localhost:3000');
@@ -83,22 +78,6 @@ router.post('/users', (ctx) => {
   
   // Broadcast to subscribers
   router.broadcast('/users', { action: 'POST', data: user });
-});
-
-// Start server
-await router.start(3000);
-```
-
-### Server (Deno)
-
-```typescript
-import { DenoRouter } from 'npm:neorest/deno';
-
-const router = new DenoRouter();
-
-// Define routes
-router.get('/users', (ctx) => {
-  ctx.response = { users: [] };
 });
 
 // Start server
@@ -178,7 +157,6 @@ Multi-runtime support with production-ready features:
 - ✅ WebSocket strategy (client + server)
 - ✅ HTTP long-polling strategy (client + server)
 - ✅ Node.js router and adapter
-- ✅ Deno router and adapter
 - ✅ Multi-runtime package structure
 - ✅ Unit tests that verify HTTP and WebSocket flows
 - 🚧 E2E tests (Playwright)
