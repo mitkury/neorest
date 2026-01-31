@@ -1,7 +1,6 @@
 import { ConnectionBase } from '@neorest/core';
 import { 
   ClientStrategy, 
-  CommunicationStrategy,
   BroadcastEvent,
   ConnectionOptions,
   ReconnectOptions,
@@ -29,7 +28,8 @@ export class ClientConnection extends ConnectionBase {
   private isFullyConnected = false;
   private subscribedRoutes: Record<string, (broadcast: BroadcastEvent) => void> = {};
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private reconnectOptions: ReconnectOptions;
+  private reconnectOptions: ReconnectOptions | undefined;
+  private reconnectAttempts = 0;
   private url?: string;
   private defaultRequestHeaders: Record<string, string> = {};
   
@@ -43,7 +43,7 @@ export class ClientConnection extends ConnectionBase {
    * @param strategy - The communication strategy to use
    * @param options - Options for the connection
    */
-  constructor(strategy: CommunicationStrategy, options?: ConnectionOptions) {
+  constructor(strategy: ClientStrategy, options?: ConnectionOptions) {
     super(strategy);
     
     // Extract secret from strategy URL if available, otherwise generate one
@@ -62,13 +62,15 @@ export class ClientConnection extends ConnectionBase {
     this.onClientConnect = () => {};
     
     // Set up reconnect options
-    this.reconnectOptions = {
-      maxAttempts: 10,
-      initialDelay: 500,
-      maxDelay: 30000,
-      factor: 1.5,
-      ...(typeof options?.reconnect === 'object' ? options.reconnect : {})
-    };
+    this.reconnectOptions = options?.reconnect === false
+      ? undefined
+      : {
+          maxAttempts: 10,
+          initialDelay: 500,
+          maxDelay: 30000,
+          factor: 1.5,
+          ...(typeof options?.reconnect === 'object' ? options.reconnect : {})
+        };
     
     // Add route message handler
     this.registerRouteMessageHandler();
@@ -244,19 +246,12 @@ export class ClientConnection extends ConnectionBase {
       // Register callback
       this.subscribedRoutes[route] = callback as (broadcast: BroadcastEvent) => void;
 
-      // Wait for connection
-      let waitCount = 0;
-      while (true) {
-        if (this.isFullyConnected) {
-          break;
-        }
-        waitCount++;
-        if (waitCount > 50) { // 5 seconds timeout
-          console.error(`ClientConnection: Timeout waiting for connection to subscribe to ${route}`);
-          reject(new Error(`Connection timeout for subscription to ${route}`));
-          return;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 100));
+      try {
+        await this.waitForConnection();
+      } catch (e) {
+        console.error(`ClientConnection: Timeout waiting for connection to subscribe to ${route}`);
+        reject(new Error(`Connection timeout for subscription to ${route}`));
+        return;
       }
 
       // Send subscription message
@@ -271,6 +266,34 @@ export class ClientConnection extends ConnectionBase {
           resolve();
         }
       });
+    });
+  }
+
+  private waitForConnection(timeoutMs = 5000): Promise<void> {
+    if (this.isFullyConnected) return Promise.resolve();
+
+    return new Promise((resolve, reject) => {
+      let resolved = false;
+      let checkInterval: ReturnType<typeof setInterval>;
+
+      const timer = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          clearInterval(checkInterval);
+          reject(new Error("Connection timeout"));
+        }
+      }, timeoutMs);
+
+      checkInterval = setInterval(() => {
+        if (this.isFullyConnected) {
+          if (!resolved) {
+            resolved = true;
+            clearTimeout(timer);
+            clearInterval(checkInterval);
+            resolve();
+          }
+        }
+      }, 100);
     });
   }
 
@@ -316,6 +339,7 @@ export class ClientConnection extends ConnectionBase {
     this.onOpen = () => {
       originalOnOpen();
       this.isFullyConnected = true;
+      this.reconnectAttempts = 0;
       this.onClientConnect();
     };
 
@@ -336,7 +360,6 @@ export class ClientConnection extends ConnectionBase {
       const sub = this.subscribedRoutes[routeMsg.route];
       
       if (sub) {
-        try { console.log(`[Client] received route=${routeMsg.route}`); } catch {}
         const action = routeMsg.verb as "POST" | "DELETE";
         sub({ data: routeMsg.data, action: action });
       }
@@ -386,13 +409,15 @@ export class ClientConnection extends ConnectionBase {
     } catch (error) {
       console.error("Reconnection failed:", error);
       
+      this.reconnectAttempts++;
+
       // Schedule another reconnection attempt with exponential backoff
       const initialDelay = this.reconnectOptions?.initialDelay || 500;
       const factor = this.reconnectOptions?.factor || 1.5;
       const maxDelay = this.reconnectOptions?.maxDelay || 30000;
       
       const nextDelay = Math.min(
-        initialDelay * Math.pow(factor, 1),
+        initialDelay * Math.pow(factor, this.reconnectAttempts),
         maxDelay
       );
       

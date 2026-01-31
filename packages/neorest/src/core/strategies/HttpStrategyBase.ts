@@ -1,4 +1,4 @@
-import { MsgWrapper, BaseConnection } from '../types';
+import { MsgWrapper } from '../types';
 import { ServerStrategy } from '../CommunicationStrategy';
 
 /**
@@ -28,7 +28,7 @@ export abstract class HttpStrategyBase implements ServerStrategy {
    * HTTP long-polling strategy is per-connection and does not accept an external connection object.
    * Implementing to satisfy the ServerStrategy interface.
    */
-  handleConnection(_: BaseConnection): void {
+  handleConnection(_: any): void {
     // No-op for HTTP strategy
   }
 
@@ -157,7 +157,7 @@ export abstract class HttpStrategyBase implements ServerStrategy {
    * @param message - The message to broadcast
    * @param filter - Optional filter function
    */
-  broadcast(message: MsgWrapper, filter?: (conn: BaseConnection) => boolean): void {
+  broadcast(message: MsgWrapper, filter?: (conn: any) => boolean): void {
     // This is a single connection strategy, so broadcasting is the same as sending
     if (!filter || filter(this)) {
       this.send(message);

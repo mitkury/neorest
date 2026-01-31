@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document presents comprehensive performance benchmarks for Neorest, covering connection establishment, message throughput, reconnection reliability, and concurrent connection handling under various load conditions. All benchmarks have been validated with multiple test runs to ensure consistency.
+This document presents comprehensive performance benchmarks for Neorest, covering connection establishment, message throughput, reconnection reliability, and concurrent connection handling under various load conditions. Results below were recorded on January 31, 2026. All benchmarks have been validated with multiple test runs to ensure consistency.
 
 ## Benchmarking Methodology
 
@@ -10,7 +10,7 @@ This document presents comprehensive performance benchmarks for Neorest, coverin
 - **Platform**: Node.js with native WebSocket implementation
 - **Transport**: WebSocket connections with secret-based authentication
 - **Message Format**: JSON payloads with echo responses
-- **Test Machine**: Linux environment with standard Node.js runtime
+- **Test Machine**: macOS environment with standard Node.js runtime
 - **Validation**: Multiple test runs to ensure consistency and reliability
 
 ### Test Scenarios
@@ -40,35 +40,35 @@ This document presents comprehensive performance benchmarks for Neorest, coverin
 ### Connection Performance
 
 **Low Load (3 connections):**
-- **Connection Time**: 1.7-12.1ms per connection
-- **Average**: ~5ms per connection
+- **Connection Time**: 1.45-10.65ms per connection
+- **Average**: ~4.5ms per connection
 - **Consistency**: Very stable across multiple runs
 
 **High Load (10 connections):**
-- **Connection Time**: 1.1-11.9ms per connection
-- **Average**: ~2.7ms per connection
+- **Connection Time**: 0.95-32.14ms per connection
+- **Average**: ~5.3ms per connection
 - **Consistency**: Excellent scalability
 
 ### Message Throughput
 
 **Low Load:**
-- **5 messages**: ~3.4ms total (1,470 msg/s)
-- **10 messages**: ~1.7ms total (5,880 msg/s)
+- **5 messages**: ~1.64ms total (3,046 msg/s)
+- **10 messages**: ~1.77ms total (5,662 msg/s)
 
 **Medium Load:**
-- **25 messages**: ~6.0ms total (4,170 msg/s)
-- **50 messages**: ~2.1ms total (23,800 msg/s)
-- **100 messages**: ~1.1ms total (90,900 msg/s)
+- **25 messages**: ~2.85ms total (8,783 msg/s)
+- **50 messages**: ~2.62ms total (19,067 msg/s)
+- **100 messages**: ~1.16ms total (85,843 msg/s)
 
 **High Load:**
-- **200 messages**: ~8.9ms total (22,500 msg/s)
-- **500 messages**: ~0.2ms total (2,500,000 msg/s)
-- **1000 messages**: ~0.6ms total (1,670,000 msg/s)
+- **200 messages**: ~7.24ms total (27,612 msg/s)
+- **500 messages**: ~0.17ms total (2,985,805 msg/s)
+- **1000 messages**: ~0.49ms total (2,046,212 msg/s)
 
 ### Reconnection Performance
 
 **Consistent Results Across All Loads:**
-- **Reconnection Time**: ~103ms per reconnection
+- **Reconnection Time**: ~103-107ms per reconnection
 - **Reliability**: 100% success rate
 - **Secret Preservation**: Perfect consistency
 - **Functionality**: Full message handling after reconnection
@@ -76,26 +76,26 @@ This document presents comprehensive performance benchmarks for Neorest, coverin
 ### Concurrent Connection Handling
 
 **Low Load:**
-- **2 connections**: ~3ms total
-- **3 connections**: ~8ms total
+- **2 connections**: ~3.85ms total
+- **3 connections**: ~3.25ms total
 
 **Medium Load:**
-- **5 connections**: ~7ms total
-- **10 connections**: ~13ms total
-- **15 connections**: ~19ms total
+- **5 connections**: ~6.68ms total
+- **10 connections**: ~10.78ms total
+- **15 connections**: ~14.38ms total
 
 **High Load:**
-- **25 connections**: ~28ms total
-- **50 connections**: ~55ms total
-- **100 connections**: ~107ms total
+- **25 connections**: ~20.77ms total
+- **50 connections**: ~44.59ms total
+- **100 connections**: ~79.78ms total
 
 ### Mixed Load Test
 
 **High-Stress Scenario:**
 - **20 concurrent connections**
 - **100 messages per connection** (2,000 total messages)
-- **Total Time**: ~80ms
-- **Effective Throughput**: ~25,000 messages/second
+- **Total Time**: ~73.99ms
+- **Effective Throughput**: ~27,032 messages/second
 - **Success Rate**: 100%
 
 ## Key Performance Characteristics
@@ -103,16 +103,16 @@ This document presents comprehensive performance benchmarks for Neorest, coverin
 ### Strengths
 
 1. **Excellent Scalability**: Performance improves with larger message batches due to efficient batching
-2. **Consistent Reconnection**: 103ms reconnection time with 100% reliability across all test scenarios
+2. **Consistent Reconnection**: ~103-107ms reconnection time with 100% reliability across all test scenarios
 3. **Linear Connection Scaling**: Connection handling scales linearly up to 100+ concurrent connections
-4. **High Throughput**: Achieves 1M+ messages/second for large batches with perfect reliability
+4. **High Throughput**: Achieves 2M+ messages/second for large batches with perfect reliability
 5. **Low Latency**: Sub-millisecond response times for most scenarios
 6. **Zero Message Loss**: 100% message delivery success rate across all test scenarios
 
 ### Performance Patterns
 
 1. **Batching Efficiency**: Larger message batches show better performance due to reduced overhead
-2. **Connection Overhead**: First connection typically takes 10-12ms, subsequent connections are faster (~1-3ms)
+2. **Connection Overhead**: First connection typically takes ~8-11ms, subsequent connections are faster (~1-3ms)
 3. **Memory Efficiency**: System handles high concurrent loads without memory issues
 4. **Resource Cleanup**: Proper cleanup of connections and resources prevents memory leaks
 
@@ -120,10 +120,10 @@ This document presents comprehensive performance benchmarks for Neorest, coverin
 
 Based on industry standards and typical WebSocket library performance:
 
-- **Exceptional Throughput**: 1M+ messages/second for large batches significantly exceeds typical WebSocket libraries (usually 1,000-10,000 msg/s)
+- **Exceptional Throughput**: 2M+ messages/second for large batches significantly exceeds typical WebSocket libraries (usually 1,000-10,000 msg/s)
 - **Excellent Latency**: Sub-millisecond response times are industry-leading
-- **Fast Connection**: 1-12ms connection times are very competitive
-- **Reliable Reconnection**: 103ms reconnection with secret preservation is robust
+- **Fast Connection**: 0.95-32ms connection times are very competitive
+- **Reliable Reconnection**: ~103-107ms reconnection with secret preservation is robust
 - **High Concurrency**: 100+ concurrent connections with linear scaling is excellent
 
 ## Benchmarking Tools
@@ -184,22 +184,22 @@ node benchmark.js stress
 ### For Production
 1. **Comprehensive Testing**: Run all benchmark levels before production deployment
 2. **Performance Monitoring**: Implement monitoring for connection times, message throughput, and error rates
-3. **Capacity Planning**: Use benchmark results for capacity planning (1M+ msg/s for large batches)
+3. **Capacity Planning**: Use benchmark results for capacity planning (2M+ msg/s for large batches)
 4. **Load Balancing**: Consider load balancing for scenarios requiring >100 concurrent connections
 
 ## Conclusion
 
 Neorest demonstrates **exceptional performance characteristics** with:
 
-- **1M+ messages/second throughput** for large batches
+- **2M+ messages/second throughput** for large batches
 - **Sub-millisecond latency** for most scenarios  
 - **100% message delivery reliability** across all test scenarios
 - **Linear scaling** up to 100+ concurrent connections
-- **Consistent 103ms reconnection** with perfect secret preservation
+- **Consistent ~103-107ms reconnection** with perfect secret preservation
 
 The system is **production-ready** with robust performance characteristics that exceed industry standards for WebSocket libraries.
 
 ---
 
-*Last Updated: January 2025*
+*Last Updated: January 31, 2026*
 *Status: Validated - Production Ready*

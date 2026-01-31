@@ -1,11 +1,8 @@
+import type { ServerConnection } from './ServerConnection';
+
 /**
  * Forward declarations to avoid circular dependencies
  */
-declare class ServerConnection {
-  send(message: any): void;
-  isConnected(): boolean;
-  disconnect(): void;
-}
 
 declare class Router {
   // Router methods will be defined where needed

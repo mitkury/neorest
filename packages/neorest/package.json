@@ -10,7 +10,6 @@
   "exports": {
     ".": {
       "browser": "./dist/index.browser.js",
-      "deno": "./deno/mod.js",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs",
       "default": "./dist/index.mjs"
@@ -20,7 +19,6 @@
       "require": "./dist/node.cjs"
     },
     "./browser": "./dist/index.browser.js",
-    "./deno": "./deno/mod.js",
     "./core": {
       "import": "./dist/core.mjs",
       "require": "./dist/core.cjs"

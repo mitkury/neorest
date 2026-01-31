@@ -23,6 +23,7 @@ import {
   Key,
   match,
   MatchFunction,
+  MatchResult,
   pathToRegexp,
 } from './utils/pathToRegexp';
 
@@ -324,6 +325,7 @@ export class Router {
           headers: msg.headers || {},
           sender: this.connections[connSecret],
           route: msg.route,
+          response: undefined,
         } as RequestContext;
 
         const verbAndHandler = route.verbs.find((vh) => vh.verb === msg.verb);
@@ -551,7 +553,7 @@ export class Router {
   ): void {
     const verb = action as RouteVerb;
     // Identify the most specific matching out route and broadcast only once.
-    let best: { layer: OutRouteLayer; match: ReturnType<MatchFunction> } | null = null;
+    let best: { layer: OutRouteLayer; match: MatchResult } | null = null;
     for (const layer of this.outRoutes) {
       const m = layer.match(route);
       if (!m) continue;
@@ -659,6 +661,7 @@ export class Router {
           headers: headers || {},
           sender: syntheticSender,
           route: path,
+          response: undefined,
         } as RequestContext;
 
         const verbAndHandler = route.verbs.find((vh) => vh.verb === verb);
