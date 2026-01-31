@@ -1,10 +1,10 @@
 import { MsgWrapper, ConnectionSecret } from '../../core';
-import { HttpStrategyBase } from '../../core';
+import { HttpTransportBase } from '../../core';
 
 /**
- * HTTP long-polling strategy for Node.js server
+ * HTTP long-polling transport for Node.js server
  */
-export class HttpStrategy extends HttpStrategyBase {
+export class HttpTransport extends HttpTransportBase {
   /**
    * Constructor
    * @param clientId - The client ID

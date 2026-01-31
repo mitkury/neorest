@@ -1,7 +1,7 @@
 import { ConnectionSecret } from '../../core';
 import { Router, ServerAdapter } from '../../core';
-import { HttpStrategy } from '../strategies/HttpStrategy';
-// Removed static import of WebSocketStrategy to avoid pulling 'ws' at module load
+import { HttpTransport } from '../transports/HttpTransport';
+// Removed static import of WebSocketTransport to avoid pulling 'ws' at module load
 import { createServer as createHttpServer, Server as HttpServer } from 'http';
 import { createServer as createHttpsServer, Server as HttpsServer } from 'https';
 // Removed static import of WebSocketServer from 'ws' to make it optional at runtime
@@ -37,7 +37,7 @@ export class NodeServerAdapter implements ServerAdapter {
   private router?: Router;
   private server: HttpServer | HttpsServer | null = null;
   private wsServer: any | null = null; // WebSocketServer is optional
-  private httpConnections: Map<string, HttpStrategy> = new Map();
+  private httpConnections: Map<string, HttpTransport> = new Map();
 
   /**
    * Constructor
@@ -110,8 +110,8 @@ export class NodeServerAdapter implements ServerAdapter {
    */
   async stop(): Promise<void> {
     // Close all HTTP connections
-    for (const strategy of this.httpConnections.values()) {
-      strategy.disconnect();
+    for (const transport of this.httpConnections.values()) {
+      transport.disconnect();
     }
     this.httpConnections.clear();
     
@@ -139,16 +139,16 @@ export class NodeServerAdapter implements ServerAdapter {
   private async handleWebSocketConnection(socket: any, request: IncomingMessage): Promise<void> {
     if (!this.router) return;
 
-    // Defer loading the WebSocketStrategy to avoid importing 'ws' unless needed
-    const { WebSocketStrategy } = await import('../strategies/WebSocketStrategy');
+    // Defer loading the WebSocketTransport to avoid importing 'ws' unless needed
+    const { WebSocketTransport } = await import('../transports/WebSocketTransport');
 
     // Get reconnect secret from URL
     const url = new URL(request.url || '/', `http://${request.headers.host}`);
     const reconnectSecret = url.searchParams.get('secret');
     
-    // Create strategy and add connection
-    const strategy = new WebSocketStrategy(socket as any);
-    await this.router.handleNewConnection(strategy as any, reconnectSecret as ConnectionSecret);
+    // Create transport and add connection
+    const transport = new WebSocketTransport(socket as any);
+    await this.router.handleNewConnection(transport as any, reconnectSecret as ConnectionSecret);
   }
 
   /**
@@ -194,18 +194,18 @@ export class NodeServerAdapter implements ServerAdapter {
         return;
       }
 
-      // Create or retrieve HTTP strategy for this client
-      let strategy = this.httpConnections.get(clientId);
-      if (!strategy) {
+      // Create or retrieve HTTP transport for this client
+      let transport = this.httpConnections.get(clientId);
+      if (!transport) {
         console.log(`New HTTP client connection: ${clientId}`);
-        strategy = new HttpStrategy(clientId);
-        this.httpConnections.set(clientId, strategy);
-        this.router.handleNewConnection(strategy, reconnectSecret as ConnectionSecret);
+        transport = new HttpTransport(clientId);
+        this.httpConnections.set(clientId, transport);
+        this.router.handleNewConnection(transport, reconnectSecret as ConnectionSecret);
       }
 
       // Handle long polling
       if (isPoll) {
-        const messages = strategy.getQueuedMessages();
+        const messages = transport.getQueuedMessages();
         if (messages.length > 0) {
           res.writeHead(200, {
             'Content-Type': 'application/json',
@@ -226,9 +226,9 @@ export class NodeServerAdapter implements ServerAdapter {
         req.on('end', async () => {
           try {
             const message = JSON.parse(body);
-            strategy!.processMessage(message);
+            transport!.processMessage(message);
             await new Promise(resolve => setTimeout(resolve, 50));
-            const responseMessages = strategy!.getQueuedMessages();
+            const responseMessages = transport!.getQueuedMessages();
             if (responseMessages.length > 0) {
               res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
               res.end(JSON.stringify(responseMessages));

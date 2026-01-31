@@ -8,9 +8,9 @@ export { ServerConnection } from './ServerConnection';
 // Export type definitions
 export * from './types';
 
-// Export strategies
-export { WebSocketStrategy } from './strategies/WebSocketStrategy';
-export { HttpStrategyBase } from './strategies/HttpStrategyBase';
+// Export transports
+export { WebSocketTransport } from './transports/WebSocketTransport';
+export { HttpTransportBase } from './transports/HttpTransportBase';
 export { withAuth } from './middleware';
 
 // Export utility functions

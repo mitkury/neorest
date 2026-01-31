@@ -17,7 +17,7 @@ import {
   ConnectionSecret,
   MsgDataSet
 } from './types';
-import { CommunicationStrategy, ServerStrategy } from './CommunicationStrategy';
+import { CommunicationTransport, ServerTransport } from './CommunicationTransport';
 import { msg_ConnDataSet } from './types';
 
 /**
@@ -43,14 +43,14 @@ export class ServerConnection extends ConnectionBase {
   
   /**
    * Constructor
-   * @param strategy - The communication strategy to use
+   * @param transport - The communication transport to use
    * @param onDataSet - Callback for handling data set messages
    */
   constructor(
-    strategy: CommunicationStrategy, 
+    transport: CommunicationTransport,
     onDataSet: (data: [string, Payload]) => void = () => {}
   ) {
-    super(strategy);
+    super(transport);
     this.onDataSet = onDataSet;
     this.registerRouteHandlers();
     this.setupServerCloseTimeout();
@@ -82,23 +82,24 @@ export class ServerConnection extends ConnectionBase {
   }
 
   /**
-   * Get the current communication strategy
-   * @returns The current strategy
+   * Get the current communication transport
+   * @returns The current transport
    */
-  public getStrategy(): CommunicationStrategy {
-    return (this as any).strategy;
+  public getTransport(): CommunicationTransport {
+    return (this as any).transport;
   }
 
   /**
-   * Update the communication strategy (for reconnection)
-   * @param newStrategy - The new communication strategy
+   * Update the communication transport (for reconnection)
+   * @param newTransport - The new communication transport
    */
-  public async updateStrategy(newStrategy: CommunicationStrategy): Promise<void> {
-    // Close the old strategy
+  public async setTransport(newTransport: CommunicationTransport): Promise<void> {
+    // Close the old transport
     this.close();
     
-    // Update to the new strategy (this will automatically connect)
-    await this.setStrategy(newStrategy);
+    // Update to the new transport (this will automatically connect)
+    // Call the super method which handles connection replacement
+    await super.setTransport(newTransport);
 
     // Secret is already available in the connection URL, no need to send DATA_SET message
 

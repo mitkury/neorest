@@ -107,7 +107,7 @@ import { Router, ServerConnection } from 'neorest/core';
 
 ### Client
 
-- `new Client(url, strategy?, options?)` - Create a new client
+- `new Client(url, transport?, options?)` - Create a new client
 - `client.get(route, headers?)` - Send GET request
 - `client.post(route, data?, headers?)` - Send POST request
 - `client.delete(route, headers?)` - Send DELETE request

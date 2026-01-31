@@ -1,9 +1,9 @@
-import { MsgWrapper, BaseConnection } from './types.js';
+import { MsgWrapper } from './types';
 
 /**
- * Base communication strategy interface
+ * Base communication transport interface
  */
-export interface CommunicationStrategy {
+export interface CommunicationTransport {
   /**
    * Connect to the server
    */
@@ -46,9 +46,9 @@ export interface CommunicationStrategy {
 }
 
 /**
- * Strategy for client-side communication
+ * Transport for client-side communication
  */
-export interface ClientStrategy extends CommunicationStrategy {
+export interface ClientTransport extends CommunicationTransport {
   /**
    * Set authentication data
    * @param authData - The authentication data
@@ -63,21 +63,21 @@ export interface ClientStrategy extends CommunicationStrategy {
 }
 
 /**
- * Strategy for server-side communication
+ * Transport for server-side communication
  */
-export interface ServerStrategy extends CommunicationStrategy {
+export interface ServerTransport extends CommunicationTransport {
   /**
    * Handle a new connection
    * @param connection - The connection to handle
    */
-  handleConnection(connection: BaseConnection): void;
+  handleConnection(connection: any): void;
   
   /**
    * Broadcast a message to all connections
    * @param message - The message to broadcast
    * @param filter - Optional filter function to determine which connections receive the message
    */
-  broadcast(message: MsgWrapper, filter?: (conn: BaseConnection) => boolean): void;
+  broadcast(message: MsgWrapper, filter?: (conn: any) => boolean): void;
 }
 
 /**

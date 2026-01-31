@@ -20,7 +20,7 @@ async function startServerHttpOnly(port = 8102, received: any[] = []) {
   return router;
 }
 
-describe('auto strategy falls back to HTTP long-poll when WS unavailable', () => {
+describe('auto transport falls back to HTTP long-poll when WS unavailable', () => {
   it('completes request/response and subscriptions via HTTP only', async () => {
     const port = 8102;
     const receivedOnServer: any[] = [];

@@ -1,6 +1,6 @@
 import { ConnectionBase } from '@neorest/core';
 import { 
-  ClientStrategy, 
+  ClientTransport,
   BroadcastEvent,
   ConnectionOptions,
   ReconnectOptions,
@@ -19,7 +19,7 @@ import {
   newConnectionSecret,
   msg_ConnDataSet
 } from './core';
-import { createStrategy } from './strategies/index';
+import { createTransport } from './transports/index';
 
 /**
  * Client-side connection implementation
@@ -40,14 +40,14 @@ export class ClientConnection extends ConnectionBase {
 
   /**
    * Constructor
-   * @param strategy - The communication strategy to use
+   * @param transport - The communication transport to use
    * @param options - Options for the connection
    */
-  constructor(strategy: ClientStrategy, options?: ConnectionOptions) {
-    super(strategy);
+  constructor(transport: ClientTransport, options?: ConnectionOptions) {
+    super(transport);
     
-    // Extract secret from strategy URL if available, otherwise generate one
-    const connectionInfo = strategy.getConnectionInfo();
+    // Extract secret from transport URL if available, otherwise generate one
+    const connectionInfo = transport.getConnectionInfo();
     const urlObj = new URL(connectionInfo.url);
     const existingSecret = urlObj.searchParams.get('secret');
     
@@ -82,16 +82,16 @@ export class ClientConnection extends ConnectionBase {
   /**
    * Set the URL for the connection
    * @param url - The URL to connect to
-   * @param strategyType - The type of strategy to use
+   * @param transportType - The type of transport to use
    */
-  public async setUrl(url: string, strategyType?: 'websocket' | 'http' | 'auto'): Promise<void> {
+  public async setUrl(url: string, transportType?: 'websocket' | 'http' | 'auto'): Promise<void> {
     this.url = url;
     
     // Close existing connection
     this.close();
     
-    // Create new strategy
-    const type = strategyType || this.getStrategyType();
+    // Create new transport
+    const type = transportType || this.getTransportType();
     
     // Check if URL already has a secret parameter
     const urlObj = new URL(url);
@@ -108,12 +108,12 @@ export class ClientConnection extends ConnectionBase {
       this.setHeader('secret', existingSecret);
     }
     
-    const strategy = createStrategy(type, connectionUrl);
+    const transport = createTransport(type, connectionUrl);
     
-    // Set the new strategy
-    this.setStrategy(strategy);
+    // Set the new transport
+    this.setTransport(transport);
     
-    // Connect with new strategy
+    // Connect with new transport
     await this.connect();
   }
 
@@ -134,11 +134,11 @@ export class ClientConnection extends ConnectionBase {
   }
 
   /**
-   * Get the strategy type
-   * @returns The strategy type
+   * Get the transport type
+   * @returns The transport type
    */
-  public getStrategyType(): 'websocket' | 'http' | 'auto' {
-    const type = (this.strategy as any).type;
+  public getTransportType(): 'websocket' | 'http' | 'auto' {
+    const type = (this.transport as any).getConnectionInfo().type;
     if (type === 'websocket' || type === 'http' || type === 'auto') {
       return type;
     }
@@ -394,14 +394,14 @@ export class ClientConnection extends ConnectionBase {
     }
 
     try {
-      // Create new strategy with same URL
-      const strategyType = this.getStrategyType();
-      const strategy = createStrategy(strategyType, this.url);
+      // Create new transport with same URL
+      const transportType = this.getTransportType();
+      const transport = createTransport(transportType, this.url);
       
       // Secret will be applied when DATA_SET arrives after reconnect
       
-      // Set new strategy and connect
-      this.setStrategy(strategy);
+      // Set new transport and connect
+      this.setTransport(transport);
       await this.connect();
       
       // After reconnection, resubscribe to routes

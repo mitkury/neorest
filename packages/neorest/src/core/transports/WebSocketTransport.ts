@@ -1,10 +1,11 @@
-import { ServerStrategy, MsgWrapper } from '@neorest/core';
+import { MsgWrapper } from '../types';
+import { ServerTransport } from '../CommunicationTransport';
 
 /**
- * WebSocket strategy for server-side connections using standard browser WebSocket API.
+ * WebSocket transport for server-side connections using standard browser WebSocket API.
  * Can be used in both Node.js and Deno environments.
  */
-export class WebSocketStrategy implements ServerStrategy {
+export class WebSocketTransport implements ServerTransport {
   private socket: WebSocket;
   private messageCallback: ((message: MsgWrapper) => void) | null = null;
   private closeCallback: (() => void) | null = null;
@@ -190,8 +191,8 @@ export class WebSocketStrategy implements ServerStrategy {
    * @param message - The message to broadcast
    * @param filter - Optional filter function to determine which connections receive the message
    */
-  broadcast(message: MsgWrapper, filter?: (conn: any) => boolean): void {
-    // This is a single connection strategy, so broadcasting is the same as sending
+  broadcast(message: MsgWrapper, filter?: (conn: WebSocket) => boolean): void {
+    // This is a single connection transport, so broadcasting is the same as sending
     if (!filter || filter(this.socket)) {
       this.send(message);
     }

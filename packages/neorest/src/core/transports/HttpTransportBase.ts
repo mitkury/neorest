@@ -1,11 +1,11 @@
 import { MsgWrapper } from '../types';
-import { ServerStrategy } from '../CommunicationStrategy';
+import { ServerTransport } from '../CommunicationTransport';
 
 /**
- * Base HTTP long-polling strategy for server implementations.
- * This provides common functionality for HTTP strategies across platforms.
+ * Base HTTP long-polling transport for server implementations.
+ * This provides common functionality for HTTP transports across platforms.
  */
-export abstract class HttpStrategyBase implements ServerStrategy {
+export abstract class HttpTransportBase implements ServerTransport {
   protected clientId: string;
   protected messageQueue: MsgWrapper[] = [];
   protected lastPollTime: number = Date.now();
@@ -25,11 +25,11 @@ export abstract class HttpStrategyBase implements ServerStrategy {
   }
 
   /**
-   * HTTP long-polling strategy is per-connection and does not accept an external connection object.
-   * Implementing to satisfy the ServerStrategy interface.
+   * HTTP long-polling transport is per-connection and does not accept an external connection object.
+   * Implementing to satisfy the ServerTransport interface.
    */
   handleConnection(_: any): void {
-    // No-op for HTTP strategy
+    // No-op for HTTP transport
   }
 
   /**
@@ -51,7 +51,7 @@ export abstract class HttpStrategyBase implements ServerStrategy {
   }
 
   /**
-   * Connect (no-op for HTTP server strategy, connection is established on construction)
+   * Connect (no-op for HTTP server transport, connection is established on construction)
    */
   async connect(): Promise<void> {
     this.active = true;
@@ -158,7 +158,7 @@ export abstract class HttpStrategyBase implements ServerStrategy {
    * @param filter - Optional filter function
    */
   broadcast(message: MsgWrapper, filter?: (conn: any) => boolean): void {
-    // This is a single connection strategy, so broadcasting is the same as sending
+    // This is a single connection transport, so broadcasting is the same as sending
     if (!filter || filter(this)) {
       this.send(message);
     }
