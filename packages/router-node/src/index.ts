@@ -6,9 +6,9 @@ export type { NodeRouterOptions } from './NodeRouter';
 export { NodeServerAdapter } from './adapters/NodeServerAdapter';
 export type { NodeServerAdapterOptions } from './adapters/NodeServerAdapter';
 
-// Export strategies
-export { HttpStrategy } from './strategies/HttpStrategy';
-export { WebSocketStrategy } from './strategies/WebSocketStrategy';
+// Export transports
+export { HttpTransport } from './transports/HttpTransport';
+export { WebSocketTransport } from './transports/WebSocketTransport';
 
 // Re-export from router-core
 export { ServerConnection, Router } from '@neorest/router-core';

@@ -1,4 +1,4 @@
-import { CommunicationStrategy } from './CommunicationStrategy.js';
+import { CommunicationTransport } from './CommunicationTransport.js';
 import { 
   MsgID, 
   MsgType, 
@@ -47,7 +47,7 @@ export abstract class ConnectionBase {
   protected static SEND_LIMIT_PER_SEC = 100;
   
   // State
-  protected strategy: CommunicationStrategy;
+  protected transport: CommunicationTransport;
   protected nextMsgId: MsgID = 0;
   protected messagesToAck: {
     wrappedMsg: MsgWrapper;
@@ -70,11 +70,11 @@ export abstract class ConnectionBase {
 
   /**
    * Constructor
-   * @param strategy - The communication strategy to use
+   * @param transport - The communication transport to use
    */
-  constructor(strategy: CommunicationStrategy) {
-    this.strategy = strategy;
-    this.setupStrategyHandlers();
+  constructor(transport: CommunicationTransport) {
+    this.transport = transport;
+    this.setupTransportHandlers();
     this.setupRateLimiting();
     this.registerDefaultHandlers();
   }
@@ -83,7 +83,7 @@ export abstract class ConnectionBase {
    * Connect to the server
    */
   public async connect(): Promise<void> {
-    await this.strategy.connect();
+    await this.transport.connect();
     this.onOpen();
   }
 
@@ -93,17 +93,17 @@ export abstract class ConnectionBase {
   public close(): void {
     this.clearClosingTimer();
     this.clearRateLimitInterval();
-    this.strategy.disconnect();
+    this.transport.disconnect();
   }
 
   /**
-   * Set a new communication strategy
-   * @param newStrategy - The new strategy to use
+   * Set a new communication transport
+   * @param newTransport - The new transport to use
    */
-  public async setStrategy(newStrategy: CommunicationStrategy): Promise<void> {
+  public async setTransport(newTransport: CommunicationTransport): Promise<void> {
     this.close();
-    this.strategy = newStrategy;
-    this.setupStrategyHandlers();
+    this.transport = newTransport;
+    this.setupTransportHandlers();
     await this.connect();
     this.sendMessagesFromLaterList();
   }
@@ -148,17 +148,17 @@ export abstract class ConnectionBase {
   }
 
   /**
-   * Set up event handlers for the strategy
+   * Set up event handlers for the transport
    */
-  private setupStrategyHandlers(): void {
-    this.strategy.onMessage(this.handleSocketEvent.bind(this));
+  private setupTransportHandlers(): void {
+    this.transport.onMessage(this.handleSocketEvent.bind(this));
     
-    this.strategy.onClose(() => {
+    this.transport.onClose(() => {
       this.clearClosingTimer();
       this.onClose();
     });
 
-    this.strategy.onOpen(() => {
+    this.transport.onOpen(() => {
       this.clearClosingTimer();
       this.onOpen();
     });
@@ -316,7 +316,7 @@ export abstract class ConnectionBase {
     const id = this.nextMsgId++;
     const wrappedMsg = new_MsgWrapper(id, msg);
 
-    if (this.strategy.isConnected()) {
+    if (this.transport.isConnected()) {
       try {
         this.sendWrappedMsg(wrappedMsg);
       } catch (e) {
@@ -339,7 +339,7 @@ export abstract class ConnectionBase {
     const wrappedMsg = new_SendAndForgetMsgWrapper(msg);
 
     // We drop 'post and forget' messages if the socket is not open.
-    if (this.strategy.isConnected()) {
+    if (this.transport.isConnected()) {
       try {
         this.sendWrappedMsg(wrappedMsg);
       } catch (e) {
@@ -388,7 +388,7 @@ export abstract class ConnectionBase {
       }
     }
 
-    this.strategy.send(wrappedMsg);
+    this.transport.send(wrappedMsg);
   }
 
   /**

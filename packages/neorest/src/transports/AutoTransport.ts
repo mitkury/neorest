@@ -1,13 +1,13 @@
-import { ClientStrategy, MsgWrapper, ConnectionInfo } from '../core';
-import { WebSocketStrategy } from './WebSocketStrategy';
-import { HttpStrategy } from './HttpStrategy';
+import { ClientTransport, MsgWrapper, ConnectionInfo } from '../core';
+import { WebSocketTransport } from './WebSocketTransport';
+import { HttpTransport } from './HttpTransport';
 
 /**
- * Auto strategy: start with HTTP long-polling, attempt WebSocket upgrade, and fallback to HTTP on failures.
+ * Auto transport: start with HTTP long-polling, attempt WebSocket upgrade, and fallback to HTTP on failures.
  */
-export class AutoStrategy implements ClientStrategy {
-  private http: HttpStrategy;
-  private ws: WebSocketStrategy | null = null;
+export class AutoTransport implements ClientTransport {
+  private http: HttpTransport;
+  private ws: WebSocketTransport | null = null;
 
   private messageCallback: ((message: MsgWrapper) => void) | null = null;
   private closeCallback: (() => void) | null = null;
@@ -18,7 +18,7 @@ export class AutoStrategy implements ClientStrategy {
   private connectionSecret: string | null = null;
 
   constructor(private baseUrl: string) {
-    this.http = new HttpStrategy(this.ensureHttpUrl(baseUrl));
+    this.http = new HttpTransport(this.ensureHttpUrl(baseUrl));
     this.connectionInfo = {
       id: Math.random().toString(36).substring(2, 15),
       url: baseUrl,
@@ -38,7 +38,7 @@ export class AutoStrategy implements ClientStrategy {
     if (this.closeCallback) this.http.onClose(() => this.handleUnderlyingClose('http'));
     if (this.openCallback) this.http.onOpen(() => this.handleUnderlyingOpen('http'));
 
-    // Fire open for HTTP immediately (http strategy already calls its open callback)
+    // Fire open for HTTP immediately (http transport already calls its open callback)
     // but ensure the consumer's onOpen is invoked at least once
     if (this.openCallback) this.openCallback();
 
@@ -110,7 +110,7 @@ export class AutoStrategy implements ClientStrategy {
 
   setConnectionSecret(secret: string): void {
     this.connectionSecret = secret;
-    // Also set it on the HTTP strategy if it has the method
+    // Also set it on the HTTP transport if it has the method
     if ((this.http as any).setConnectionSecret) {
       (this.http as any).setConnectionSecret(secret);
     }
@@ -137,7 +137,7 @@ export class AutoStrategy implements ClientStrategy {
         wsUrl = url.toString();
       }
       
-      const ws = new WebSocketStrategy(wsUrl);
+      const ws = new WebSocketTransport(wsUrl);
       // propagate auth if set
       if (Object.keys(this.authData).length > 0) ws.setAuthentication(this.authData);
 

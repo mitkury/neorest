@@ -8,7 +8,7 @@ async function startServer(port = 8120) {
 
   router
     .onGet('/whoami', async (ctx) => {
-      const stratName = ctx.sender?.getStrategy()?.constructor?.name || 'unknown';
+      const stratName = ctx.sender?.transport?.constructor?.name || 'unknown';
       ctx.response = { transport: stratName };
     })
     .onGet('/echo', async (ctx) => { ctx.response = { ok: true }; });
@@ -31,14 +31,14 @@ describe('security: session takeover via reconnect secret', () => {
     // Baseline: victim transport is HTTP on the server
     const before = await victim.get<{ transport: string }>('/whoami');
     expect(before.error).toBeUndefined();
-    expect(before.data.transport).toBe('HttpStrategy');
+    expect(before.data.transport).toBe('HttpTransport');
 
     const secret: string = (victim as any).conn.getSecret();
     expect(secret).toMatch(/^[a-f0-9]{64}$/);
 
     // Attacker attempts to connect over WS using the stolen secret
     const attacker = new Client(`ws://localhost:${port}`, 'websocket');
-    ((attacker as any).conn as any).strategy.setAuthentication({ secret });
+    ((attacker as any).conn as any).transport.setAuthentication({ secret });
     await ((attacker as any).conn as any).connect();
 
     // The security fix should prevent hijacking by reusing the existing connection
@@ -72,16 +72,16 @@ describe('security: random secret does not hijack', () => {
 
     const before = await victim.get<{ transport: string }>('/whoami');
     expect(before.error).toBeUndefined();
-    expect(before.data.transport).toBe('HttpStrategy');
+    expect(before.data.transport).toBe('HttpTransport');
 
     const randomSecret = Array.from({ length: 64 }, () => Math.floor(Math.random()*16).toString(16)).join('');
     const rando = new Client(`ws://localhost:${port}`, 'websocket');
-    ((rando as any).conn as any).strategy.setAuthentication({ secret: randomSecret });
+    ((rando as any).conn as any).transport.setAuthentication({ secret: randomSecret });
     await ((rando as any).conn as any).connect();
 
     const after = await victim.get<{ transport: string }>('/whoami');
     expect(after.error).toBeUndefined();
-    expect(after.data.transport).toBe('HttpStrategy');
+    expect(after.data.transport).toBe('HttpTransport');
 
     (victim as any).close?.();
     (rando as any).close?.();

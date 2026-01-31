@@ -1,11 +1,11 @@
 // Export main client class
 export { Client } from './Client';
 
-// Export strategies for advanced usage
-export { WebSocketStrategy } from './strategies/WebSocketStrategy';
-export { HttpStrategy } from './strategies/HttpStrategy';
-export { AutoStrategy } from './strategies/AutoStrategy';
-export { createStrategy } from './strategies';
+// Export transports for advanced usage
+export { WebSocketTransport } from './transports/WebSocketTransport';
+export { HttpTransport } from './transports/HttpTransport';
+export { AutoTransport } from './transports/AutoTransport';
+export { createTransport } from './transports';
 
 // Export connection class for advanced usage
 export { ClientConnection } from './ClientConnection';

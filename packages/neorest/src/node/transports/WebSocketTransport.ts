@@ -1,11 +1,11 @@
-import type { ServerStrategy, MsgWrapper } from '@neorest/core';
+import type { ServerTransport, MsgWrapper } from '../../core';
 import type { WebSocket as WsServerSocket } from 'ws';
 
 /**
- * WebSocket strategy for Node.js server using 'ws'.
+ * WebSocket transport for Node.js server using 'ws'.
  * Uses EventEmitter-style 'on' handlers.
  */
-export class WebSocketStrategy implements ServerStrategy {
+export class WebSocketTransport implements ServerTransport {
   private socket: WsServerSocket;
   private messageCallback: ((message: MsgWrapper) => void) | null = null;
   private closeCallback: (() => void) | null = null;
@@ -85,11 +85,18 @@ export class WebSocketStrategy implements ServerStrategy {
     this.setupSocketHandlers();
   }
 
-  broadcast(message: MsgWrapper, filter?: (conn: any) => boolean): void {
+  updateSocket(newSocket: WsServerSocket): void {
+    // Disconnect the old socket
+    try { this.socket.close(); } catch {}
+    
+    // Update to the new socket
+    this.socket = newSocket;
+    this.setupSocketHandlers();
+  }
+
+  broadcast(message: MsgWrapper, filter?: (conn: WsServerSocket) => boolean): void {
     if (!filter || filter(this.socket)) {
       this.send(message);
     }
   }
 }
-
-

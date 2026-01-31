@@ -145,7 +145,7 @@ async function benchmarkReconnection() {
       const secret = client1.conn.getSecret();
       
       // Simulate connection drop
-      client1.conn.strategy.socket.close();
+      client1.conn.transport.socket.close();
       await new Promise(resolve => setTimeout(resolve, 100));
       
       // Reconnect with same secret

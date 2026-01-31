@@ -1,10 +1,10 @@
 import { MsgWrapper, ConnectionSecret } from '@neorest/core';
-import { HttpStrategyBase } from '@neorest/router-core';
+import { HttpTransportBase } from '@neorest/router-core';
 
 /**
- * HTTP long-polling strategy for Node.js server
+ * HTTP long-polling transport for Node.js server
  */
-export class HttpStrategy extends HttpStrategyBase {
+export class HttpTransport extends HttpTransportBase {
   /**
    * Constructor
    * @param clientId - The client ID

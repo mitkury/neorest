@@ -81,7 +81,7 @@ describe('Connection Management Tests', () => {
         expect(broadcasts.length).toBe(1);
 
         // Simulate connection drop by closing the underlying WebSocket
-        const originalSocket = (client as any).conn.strategy.socket;
+        const originalSocket = (client as any).conn.transport.socket;
         if (originalSocket) {
           originalSocket.close();
         }
@@ -179,7 +179,7 @@ describe('Connection Management Tests', () => {
         });
 
         // Simulate connection drop
-        const originalSocket = (client as any).conn.strategy.socket;
+        const originalSocket = (client as any).conn.transport.socket;
         if (originalSocket) {
           originalSocket.close();
         }
@@ -230,7 +230,7 @@ describe('Connection Management Tests', () => {
         expect(client.isConnected()).toBe(true);
 
         // Simulate network issues by closing the underlying socket
-        const originalSocket = (client as any).conn.strategy.socket;
+        const originalSocket = (client as any).conn.transport.socket;
         if (originalSocket) {
           originalSocket.close();
         }
@@ -272,7 +272,7 @@ describe('Connection Management Tests', () => {
         expect(client.isConnected()).toBe(true);
 
         // Simulate connection drop
-        const originalSocket = (client as any).conn.strategy.socket;
+        const originalSocket = (client as any).conn.transport.socket;
         if (originalSocket) {
           originalSocket.close();
         }
@@ -495,7 +495,7 @@ describe('Connection Management Tests', () => {
         expect(echoResponse.data).toEqual({ test: 'data' });
 
         // Simulate connection drop
-        const originalSocket = (client as any).conn.strategy.socket;
+        const originalSocket = (client as any).conn.transport.socket;
         if (originalSocket) {
           originalSocket.close();
         }

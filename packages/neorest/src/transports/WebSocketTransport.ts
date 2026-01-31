@@ -1,9 +1,9 @@
-import { ClientStrategy, MsgWrapper, ConnectionInfo } from '../core';
+import { ClientTransport, MsgWrapper, ConnectionInfo } from '../core';
 
 /**
- * WebSocket-based communication strategy using standard browser API
+ * WebSocket-based communication transport using standard browser API
  */
-export class WebSocketStrategy implements ClientStrategy {
+export class WebSocketTransport implements ClientTransport {
   private socket: WebSocket | null = null;
   private messageCallback: ((message: MsgWrapper) => void) | null = null;
   private closeCallback: (() => void) | null = null;

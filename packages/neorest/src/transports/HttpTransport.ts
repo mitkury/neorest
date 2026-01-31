@@ -1,9 +1,9 @@
-import { CommunicationStrategy, MsgWrapper, ClientStrategy, ConnectionInfo } from '../core';
+import { CommunicationTransport, MsgWrapper, ClientTransport, ConnectionInfo } from '../core';
 
 /**
- * HTTP-based communication strategy using long polling
+ * HTTP-based communication transport using long polling
  */
-export class HttpStrategy implements ClientStrategy {
+export class HttpTransport implements ClientTransport {
   private connected = false;
   private messageCallback: ((message: MsgWrapper) => void) | null = null;
   private closeCallback: (() => void) | null = null;
@@ -55,7 +55,7 @@ export class HttpStrategy implements ClientStrategy {
       }
     } catch (e) {
       // Handshake failed; proceed with a locally generated id to avoid blocking
-      console.error('HTTP strategy handshake failed, generating local clientId:', e);
+      console.error('HTTP transport handshake failed, generating local clientId:', e);
     }
 
     if (!this.clientId) {

@@ -1,7 +1,7 @@
 import { 
   ConnectionBase, 
-  ServerStrategy, 
-  CommunicationStrategy,
+  ServerTransport,
+  CommunicationTransport,
   MsgID,
   MsgRoute,
   ROUTE_MESSAGE,
@@ -41,14 +41,14 @@ export class ServerConnection extends ConnectionBase {
   
   /**
    * Constructor
-   * @param strategy - The communication strategy to use
+   * @param transport - The communication transport to use
    * @param onDataSet - Callback for handling data set messages
    */
   constructor(
-    strategy: CommunicationStrategy, 
+    transport: CommunicationTransport,
     onDataSet: (data: [string, Payload]) => void = () => {}
   ) {
-    super(strategy);
+    super(transport);
     this.onDataSet = onDataSet;
     this.registerRouteHandlers();
     this.setupServerCloseTimeout();

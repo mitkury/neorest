@@ -7,7 +7,7 @@ import {
   newConnectionSecret
 } from './core';
 import { ClientConnection } from './ClientConnection';
-import { createStrategy } from './strategies/index';
+import { createTransport } from './transports/index';
 
 /**
  * Neorest client for connecting to a server
@@ -18,10 +18,10 @@ export class Client {
   /**
    * Constructor
    * @param url - The URL to connect to
-   * @param strategyType - The type of strategy to use
+   * @param transportType - The type of transport to use
    * @param options - Options for the connection
    */
-  constructor(url: string, strategyType: 'websocket' | 'http' | 'auto' = 'auto', options?: ConnectionOptions) {
+  constructor(url: string, transportType: 'websocket' | 'http' | 'auto' = 'auto', options?: ConnectionOptions) {
     if (!url) {
       throw new Error("URL is required to create a client connection");
     }
@@ -31,15 +31,15 @@ export class Client {
     const existingSecret = urlObj.searchParams.get('secret');
     
     let connectionUrl = url;
-    if (!existingSecret && (strategyType === 'websocket' || (strategyType === 'auto' && url.startsWith('ws')))) {
+    if (!existingSecret && (transportType === 'websocket' || (transportType === 'auto' && url.startsWith('ws')))) {
       // Generate a secret for this connection only if none exists
       const secret = newConnectionSecret();
       urlObj.searchParams.set('secret', secret);
       connectionUrl = urlObj.toString();
     }
     
-    const strategy = createStrategy(strategyType, connectionUrl);
-    this.conn = new ClientConnection(strategy, options);
+    const transport = createTransport(transportType, connectionUrl);
+    this.conn = new ClientConnection(transport, options);
   }
 
   /**
@@ -61,11 +61,11 @@ export class Client {
   /**
    * Set the URL of the connection
    * @param url - The URL to connect to
-   * @param strategyType - The type of strategy to use
+   * @param transportType - The type of transport to use
    * @returns A promise that resolves when the connection is established
    */
-  public async setUrl(url: string, strategyType?: 'websocket' | 'http' | 'auto'): Promise<void> {
-    return this.conn.setUrl(url, strategyType);
+  public async setUrl(url: string, transportType?: 'websocket' | 'http' | 'auto'): Promise<void> {
+    return this.conn.setUrl(url, transportType);
   }
 
   /**

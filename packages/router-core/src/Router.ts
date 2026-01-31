@@ -5,7 +5,7 @@ import type {
   Payload,
   RouteResponse,
   RouteVerb,
-  CommunicationStrategy
+  CommunicationTransport
 } from '@neorest/core';
 import { newConnectionSecret } from '@neorest/core';
 import { ServerConnection } from './ServerConnection';
@@ -287,12 +287,12 @@ export class Router {
 
   /**
    * Handle a new connection
-   * @param strategy - The communication strategy to use
+   * @param transport - The communication transport to use
    * @param reconnectSecret - Optional secret for reconnection
    * @returns The new connection
    */
   public handleNewConnection(
-    strategy: CommunicationStrategy, 
+    transport: CommunicationTransport,
     reconnectSecret: ConnectionSecret | null = null
   ): ServerConnection {
     if (reconnectSecret && this.connections[reconnectSecret]) {
@@ -309,7 +309,7 @@ export class Router {
       console.log(`Creating new connection for secret: ${reconnectSecret}`);
     }
 
-    const conn = new ServerConnection(strategy, (data) => {
+    const conn = new ServerConnection(transport, (data) => {
       if (data[0] === "secret") {
         const secret = data[1] as ConnectionSecret;
         this.connections[secret] = conn;

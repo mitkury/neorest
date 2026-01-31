@@ -1,8 +1,8 @@
 // Export types from the original core package
 export * from './types';
 
-// Export interfaces and types from CommunicationStrategy
-export * from './CommunicationStrategy';
+// Export interfaces and types from CommunicationTransport
+export * from './CommunicationTransport';
 
 // Export base classes and their types
 export { ConnectionBase } from '@neorest/core';
@@ -29,9 +29,9 @@ export type {
   RequestContext
 } from './types';
 
-// Export strategies
-export { WebSocketStrategy } from './strategies/WebSocketStrategy';
-export { HttpStrategyBase } from './strategies/HttpStrategyBase';
+// Export transports
+export { WebSocketTransport } from './transports/WebSocketTransport';
+export { HttpTransportBase } from './transports/HttpTransportBase';
 export { withAuth } from './middleware';
 
 // Export utility functions

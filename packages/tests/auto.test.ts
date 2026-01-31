@@ -22,7 +22,7 @@ async function startServer(port?: number, received: any[] = []) {
   return { router, port: serverPort };
 }
 
-describe('neorest client ↔ node server (auto strategy: http first, ws upgrade)', () => {
+describe('neorest client ↔ node server (auto transport: http first, ws upgrade)', () => {
   it('performs GET/POST over initial HTTP and receives broadcasts (upgrade if WS available)', async () => {
     const receivedOnServer: any[] = [];
     const { router: server, port } = await startServer(undefined, receivedOnServer);

@@ -12,7 +12,7 @@ import type {
   RouterOptions,
   ServerAdapter
 } from './types';
-import type { CommunicationStrategy } from './CommunicationStrategy';
+import type { CommunicationTransport } from './CommunicationTransport';
 
 // Re-export types for backward compatibility
 export type { RouterOptions, ServerAdapter, RequestContext };
@@ -217,12 +217,12 @@ export class Router {
 
   /**
    * Handle a new connection
-   * @param strategy - The communication strategy to use
+   * @param transport - The communication transport to use
    * @param reconnectSecret - Optional secret for reconnection
    * @returns The new connection
    */
   public async handleNewConnection(
-    strategy: CommunicationStrategy, 
+    transport: CommunicationTransport,
     reconnectSecret: ConnectionSecret | null = null
   ): Promise<ServerConnection> {
     if (reconnectSecret && (this.connections[reconnectSecret] || this.pendingRemovals[reconnectSecret])) {
@@ -237,18 +237,18 @@ export class Router {
       }
 
       if (existingConn) {
-        // Update the communication strategy on the same connection object
-        await existingConn.updateStrategy(strategy);
+        // Update the communication transport on the same connection object
+        await existingConn.setTransport(transport);
         return existingConn;
       }
 
       // If we don't have existingConn yet (e.g., was pending removal), create anew
-      const conn = this.createAndSetupConnection(strategy, reconnectSecret);
+      const conn = this.createAndSetupConnection(transport, reconnectSecret);
       return conn;
     } else {
       // Create a new connection with a fresh secret
       const secret = reconnectSecret || newConnectionSecret();
-      const conn = this.createAndSetupConnection(strategy, secret);
+      const conn = this.createAndSetupConnection(transport, secret);
       
       return conn;
     }
@@ -256,12 +256,12 @@ export class Router {
 
   /**
    * Create and set up a new connection with the given secret
-   * @param strategy - The communication strategy
+   * @param transport - The communication transport
    * @param secret - The connection secret
    * @returns The configured connection
    */
-  private createAndSetupConnection(strategy: CommunicationStrategy, secret: ConnectionSecret): ServerConnection {
-    const conn = new ServerConnection(strategy);
+  private createAndSetupConnection(transport: CommunicationTransport, secret: ConnectionSecret): ServerConnection {
+    const conn = new ServerConnection(transport);
     
     // Set the secret and register the connection
     conn.setHeader('secret', secret);

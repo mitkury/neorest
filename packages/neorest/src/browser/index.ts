@@ -2,11 +2,11 @@
 export { Client } from '../Client';
 export { ClientConnection } from '../ClientConnection';
 
-// Export strategies for browser
-export { WebSocketStrategy } from '../strategies/WebSocketStrategy';
-export { HttpStrategy } from '../strategies/HttpStrategy';
-export { AutoStrategy } from '../strategies/AutoStrategy';
-export { createStrategy } from '../strategies';
+// Export transports for browser
+export { WebSocketTransport } from '../transports/WebSocketTransport';
+export { HttpTransport } from '../transports/HttpTransport';
+export { AutoTransport } from '../transports/AutoTransport';
+export { createTransport } from '../transports';
 
 // Re-export core types (excluding server-side types)
 export type {

@@ -154,8 +154,8 @@ See `packages/benchmark/README.md` for detailed usage instructions.
 
 Multi-runtime support with production-ready features:
 - ✅ Core architecture
-- ✅ WebSocket strategy (client + server)
-- ✅ HTTP long-polling strategy (client + server)
+- ✅ WebSocket transport (client + server)
+- ✅ HTTP long-polling transport (client + server)
 - ✅ Node.js router and adapter
 - ✅ Multi-runtime package structure
 - ✅ Unit tests that verify HTTP and WebSocket flows
