@@ -195,13 +195,7 @@ export class NodeServerAdapter implements ServerAdapter {
       }
 
       // Create or retrieve HTTP transport for this client
-      let transport = this.httpConnections.get(clientId);
-      if (!transport) {
-        console.log(`New HTTP client connection: ${clientId}`);
-        transport = new HttpTransport(clientId);
-        this.httpConnections.set(clientId, transport);
-        this.router.handleNewConnection(transport, reconnectSecret as ConnectionSecret);
-      }
+      const transport = await this.getOrCreateHttpTransport(clientId, reconnectSecret);
 
       // Handle long polling
       if (isPoll) {
@@ -289,5 +283,18 @@ export class NodeServerAdapter implements ServerAdapter {
     const { status, body, contentType } = await this.router.executeHttpRoute(method, url.pathname, data, req.headers as any);
     res.writeHead(status, { 'Content-Type': contentType || 'application/json', 'Access-Control-Allow-Origin': '*' });
     res.end(JSON.stringify(body));
+  }
+
+  private async getOrCreateHttpTransport(clientId: string, reconnectSecret: string | null): Promise<HttpTransport> {
+    let transport = this.httpConnections.get(clientId);
+    if (transport) {
+      return transport;
+    }
+
+    console.log(`New HTTP client connection: ${clientId}`);
+    transport = new HttpTransport(clientId);
+    this.httpConnections.set(clientId, transport);
+    await this.router!.handleNewConnection(transport, reconnectSecret as ConnectionSecret);
+    return transport;
   }
 }

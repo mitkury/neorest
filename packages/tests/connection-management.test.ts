@@ -113,9 +113,6 @@ describe('Connection Management Tests', () => {
         
         // CRITICAL: The secrets should be equal for true reconnection
         expect(secret2).toBe(secret);
-        console.log(`Original secret: ${secret}`);
-        console.log(`Reconnected secret: ${secret2}`);
-        console.log(`Secrets match: ${secret2 === secret}`);
 
         // Send another message to verify the connection works
         const echoResponse2 = await client2.post('/echo', { test: 'data2' });
@@ -282,6 +279,10 @@ describe('Connection Management Tests', () => {
 
         // Should have attempted reconnection
         expect(reconnectAttempts).toBeGreaterThan(0);
+        expect(client.isConnected()).toBe(true);
+
+        const echo = await client.post('/echo', { afterReconnect: true });
+        expect(echo.data).toEqual({ afterReconnect: true });
 
       } finally {
         try { (client as any)?.close?.(); } catch {}

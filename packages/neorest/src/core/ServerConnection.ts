@@ -94,11 +94,6 @@ export class ServerConnection extends ConnectionBase {
    * @param newTransport - The new communication transport
    */
   public async setTransport(newTransport: CommunicationTransport): Promise<void> {
-    // Close the old transport
-    this.close();
-    
-    // Update to the new transport (this will automatically connect)
-    // Call the super method which handles connection replacement
     await super.setTransport(newTransport);
 
     // Secret is already available in the connection URL, no need to send DATA_SET message

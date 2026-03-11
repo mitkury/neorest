@@ -151,8 +151,6 @@ export class AutoTransport implements ClientTransport {
       // Mark as upgraded
       this.ws = ws;
       this.connectionInfo.type = 'websocket';
-      // Trigger consumer open callback again to allow client to send DATA_SET over WS too
-      if (this.openCallback) this.openCallback();
     } catch (e) {
       // WS not available or failed; continue on HTTP silently
     }

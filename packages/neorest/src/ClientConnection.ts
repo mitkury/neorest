@@ -4,12 +4,8 @@ import {
   BroadcastEvent,
   ConnectionOptions,
   ReconnectOptions,
-  MsgID,
   MsgRoute,
-  MsgDataSet,
   ROUTE_MESSAGE,
-  ON_ROUTE,
-  OFF_ROUTE,
   new_MsgSubscribeToRoute,
   new_MsgUnsubscribeFromRoute,
   new_MsgResponseOK,
@@ -17,7 +13,6 @@ import {
   RouteVerb,
   Payload,
   newConnectionSecret,
-  msg_ConnDataSet
 } from './core';
 import { createTransport } from './transports/index';
 
@@ -26,6 +21,8 @@ import { createTransport } from './transports/index';
  */
 export class ClientConnection extends ConnectionBase {
   private isFullyConnected = false;
+  private isClosing = false;
+  private isReplacingTransport = false;
   private subscribedRoutes: Record<string, (broadcast: BroadcastEvent) => void> = {};
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectOptions: ReconnectOptions | undefined;
@@ -48,6 +45,7 @@ export class ClientConnection extends ConnectionBase {
     
     // Extract secret from transport URL if available, otherwise generate one
     const connectionInfo = transport.getConnectionInfo();
+    this.url = connectionInfo.url;
     const urlObj = new URL(connectionInfo.url);
     const existingSecret = urlObj.searchParams.get('secret');
     
@@ -79,17 +77,25 @@ export class ClientConnection extends ConnectionBase {
     this.setupConnectionHandlers();
   }
 
+  public async connect(): Promise<void> {
+    this.isClosing = false;
+    this.clearReconnectTimer();
+    await super.connect();
+  }
+
+  public close(): void {
+    this.isClosing = true;
+    this.isFullyConnected = false;
+    this.clearReconnectTimer();
+    super.close();
+  }
+
   /**
    * Set the URL for the connection
    * @param url - The URL to connect to
    * @param transportType - The type of transport to use
    */
   public async setUrl(url: string, transportType?: 'websocket' | 'http' | 'auto'): Promise<void> {
-    this.url = url;
-    
-    // Close existing connection
-    this.close();
-    
     // Create new transport
     const type = transportType || this.getTransportType();
     
@@ -109,12 +115,10 @@ export class ClientConnection extends ConnectionBase {
     }
     
     const transport = createTransport(type, connectionUrl);
+    this.url = connectionUrl;
     
     // Set the new transport
-    this.setTransport(transport);
-    
-    // Connect with new transport
-    await this.connect();
+    await this.replaceTransport(transport);
   }
 
   /**
@@ -131,6 +135,13 @@ export class ClientConnection extends ConnectionBase {
    */
   public getSecret(): string {
     return this.getHeader('secret') as string || '';
+  }
+
+  /**
+   * Get the current connection URL.
+   */
+  public getURL(): string {
+    return this.url || (this.transport as ClientTransport).getConnectionInfo().url;
   }
 
   /**
@@ -339,6 +350,7 @@ export class ClientConnection extends ConnectionBase {
     this.onOpen = () => {
       originalOnOpen();
       this.isFullyConnected = true;
+      this.clearReconnectTimer();
       this.reconnectAttempts = 0;
       this.onClientConnect();
     };
@@ -346,6 +358,10 @@ export class ClientConnection extends ConnectionBase {
     const originalOnClose = this.onClose;
     this.onClose = () => {
       originalOnClose();
+      if (this.isClosing || this.isReplacingTransport || this.transport.isConnected()) {
+        return;
+      }
+
       this.isFullyConnected = false;
       this.scheduleReconnect();
     };
@@ -374,22 +390,26 @@ export class ClientConnection extends ConnectionBase {
    * Schedule a reconnection attempt
    */
   private scheduleReconnect(): void {
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
+    this.clearReconnectTimer();
+
+    if (!this.reconnectOptions || this.isClosing) {
+      return;
     }
-    
-    // Only reconnect if enabled
-    if (this.reconnectOptions) {
-      console.error("Connection closed, re-connecting...");
-      this.reconnectTimer = setTimeout(() => this.reconnect(), this.reconnectOptions.initialDelay);
+
+    const maxAttempts = this.reconnectOptions.maxAttempts ?? 10;
+    if (this.reconnectAttempts >= maxAttempts) {
+      return;
     }
+
+    console.error("Connection closed, re-connecting...");
+    this.reconnectTimer = setTimeout(() => this.reconnect(), this.reconnectOptions.initialDelay);
   }
 
   /**
    * Attempt to reconnect
    */
   private async reconnect(): Promise<void> {
-    if (!this.url) {
+    if (!this.url || this.isClosing) {
       return;
     }
 
@@ -397,12 +417,8 @@ export class ClientConnection extends ConnectionBase {
       // Create new transport with same URL
       const transportType = this.getTransportType();
       const transport = createTransport(transportType, this.url);
-      
-      // Secret will be applied when DATA_SET arrives after reconnect
-      
-      // Set new transport and connect
-      this.setTransport(transport);
-      await this.connect();
+
+      await this.replaceTransport(transport);
       
       // After reconnection, resubscribe to routes
       this.resubscribeToRoutes();
@@ -410,6 +426,12 @@ export class ClientConnection extends ConnectionBase {
       console.error("Reconnection failed:", error);
       
       this.reconnectAttempts++;
+
+      const maxAttempts = this.reconnectOptions?.maxAttempts ?? 10;
+      if (this.reconnectAttempts >= maxAttempts) {
+        this.clearReconnectTimer();
+        return;
+      }
 
       // Schedule another reconnection attempt with exponential backoff
       const initialDelay = this.reconnectOptions?.initialDelay || 500;
@@ -440,5 +462,24 @@ export class ClientConnection extends ConnectionBase {
 
   public setDefaultHeaders(headers: Record<string, string>): void {
     this.defaultRequestHeaders = { ...headers };
+  }
+
+  private async replaceTransport(transport: ClientTransport): Promise<void> {
+    this.isReplacingTransport = true;
+    this.clearReconnectTimer();
+    try {
+      await super.setTransport(transport);
+    } finally {
+      this.isReplacingTransport = false;
+    }
+  }
+
+  private clearReconnectTimer(): void {
+    if (!this.reconnectTimer) {
+      return;
+    }
+
+    clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
   }
 }

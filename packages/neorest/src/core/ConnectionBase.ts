@@ -59,18 +59,19 @@ export abstract class ConnectionBase {
   }
 
   public async connect(): Promise<void> {
+    if (!this.rateLimitInterval) {
+      this.setupRateLimiting();
+    }
     await this.transport.connect();
-    this.onOpen();
   }
 
   public close(): void {
-    this.clearClosingTimer();
     this.clearRateLimitInterval();
-    this.transport.disconnect();
+    this.disconnectTransport();
   }
 
   public async setTransport(newTransport: CommunicationTransport): Promise<void> {
-    this.close();
+    this.disconnectTransport();
     this.transport = newTransport;
     this.setupTransportHandlers();
     await this.connect();
@@ -306,6 +307,11 @@ export abstract class ConnectionBase {
       clearTimeout(this.closingTimer);
       this.closingTimer = null;
     }
+  }
+
+  protected disconnectTransport(): void {
+    this.clearClosingTimer();
+    this.transport.disconnect();
   }
 
   protected clearRateLimitInterval(): void {

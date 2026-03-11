@@ -47,7 +47,7 @@ export class Client {
    * @returns The URL
    */
   public getURL(): string | undefined {
-    return this.conn.getHeader('url') as string | undefined;
+    return this.conn.getURL();
   }
 
   /**
@@ -170,7 +170,7 @@ export class Client {
     route: string,
     callback: (broadcast: BroadcastEvent<T>) => void,
   ): Promise<void> {
-    return (this.conn as any).on(route, callback) as Promise<void>;
+    return this.conn.on(route, callback);
   }
 
   /**
@@ -188,7 +188,7 @@ export class Client {
    * @param route - The route to unsubscribe from
    */
   public off(route: string): void {
-    (this.conn as any).off(route);
+    this.conn.off(route);
   }
 
   /**
