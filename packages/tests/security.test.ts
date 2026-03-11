@@ -26,7 +26,7 @@ describe('security: session takeover via reconnect secret', () => {
 
   it('attacker cannot overtake via ws ?secret= (security fix prevents hijacking)', async () => {
     const victim = new Client(`http://localhost:${port}`, 'http');
-    await (victim as any).conn.connect();
+    await victim.connect();
 
     // Baseline: victim transport is HTTP on the server
     const before = await victim.get<{ transport: string }>('/whoami');
@@ -68,7 +68,7 @@ describe('security: random secret does not hijack', () => {
 
   it('random ws ?secret does not affect existing session', async () => {
     const victim = new Client(`http://localhost:${port}`, 'http');
-    await (victim as any).conn.connect();
+    await victim.connect();
 
     const before = await victim.get<{ transport: string }>('/whoami');
     expect(before.error).toBeUndefined();
@@ -119,7 +119,7 @@ describe('security: client-side rate limit', () => {
 
   it('sending >100 msgs/sec triggers local rate limit error', async () => {
     const client = new Client(`http://localhost:${port}`, 'http');
-    await (client as any).conn.connect();
+    await client.connect();
 
     const results: any[] = [];
     const promises: Promise<any>[] = [];
@@ -161,7 +161,7 @@ describe('security: client cannot set/override secret', () => {
 
   it('DATA_SET secret from client returns 403', async () => {
     const client = new Client(`http://localhost:${port}`, 'http');
-    await (client as any).conn.connect();
+    await client.connect();
 
     const { msg_ConnDataSet } = await import('neorest/core');
 

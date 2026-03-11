@@ -23,7 +23,7 @@ async function quickBenchmark() {
   const client = new Client(`ws://localhost:${port}`, 'websocket');
   
   const start = performance.now();
-  await client.conn.connect();
+  await client.connect();
   const connectTime = performance.now() - start;
   results.push({ test: 'Connection', time: connectTime });
   console.log(`✅ Connected in ${connectTime.toFixed(2)}ms`);

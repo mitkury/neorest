@@ -59,6 +59,13 @@ export class Client {
   }
 
   /**
+   * Establish the underlying transport connection.
+   */
+  public async connect(): Promise<void> {
+    await this.conn.connect();
+  }
+
+  /**
    * Set the URL of the connection
    * @param url - The URL to connect to
    * @param transportType - The type of transport to use
@@ -167,10 +174,27 @@ export class Client {
   }
 
   /**
+   * Subscribe to a route.
+   */
+  public subscribe<T = any>(
+    route: string,
+    callback: (broadcast: BroadcastEvent<T>) => void,
+  ): Promise<void> {
+    return this.on(route, callback);
+  }
+
+  /**
    * Unsubscribe from a route
    * @param route - The route to unsubscribe from
    */
   public off(route: string): void {
     (this.conn as any).off(route);
+  }
+
+  /**
+   * Unsubscribe from a route.
+   */
+  public unsubscribe(route: string): void {
+    this.off(route);
   }
 }

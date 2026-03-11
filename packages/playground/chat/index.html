@@ -135,7 +135,7 @@
         async function boot() {
             // 1) Connect to WebSocket
             client = new Client('ws://localhost:3002', 'websocket');
-            await client.conn.connect();
+            await client.connect();
             isConnected = true;
             updateStatus();
             try {

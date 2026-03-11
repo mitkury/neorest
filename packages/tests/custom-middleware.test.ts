@@ -39,7 +39,7 @@ describe('custom middleware inline in test file', () => {
 
     try {
       client = new Client(`http://localhost:${port}`, 'http');
-      await (client as any).conn.connect();
+      await client.connect();
 
       // Missing header should be rejected with 400
       const bad = await client.post('/mw/test', { a: 1 });

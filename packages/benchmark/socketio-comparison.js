@@ -111,7 +111,7 @@ async function neorestTest(messageCount) {
   console.log('✅ NeoRest server started on port 9000');
   
   const client = new Client('ws://localhost:9000', 'websocket');
-  await client.conn.connect();
+  await client.connect();
   console.log('✅ NeoRest client connected');
   
   // Send messages

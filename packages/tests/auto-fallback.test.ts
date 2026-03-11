@@ -29,7 +29,7 @@ describe('auto transport falls back to HTTP long-poll when WS unavailable', () =
 
     try {
       client = new Client(`http://localhost:${port}`, 'auto');
-      await (client as any).conn.connect();
+      await client.connect();
 
       const pong = await client.get('/ping');
       expect(pong.data).toBe('pong');

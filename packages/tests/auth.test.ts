@@ -29,7 +29,7 @@ describe('auth middleware: bearer token success and invalidation', () => {
 
     try {
       client = new Client(`http://localhost:${port}`, 'http');
-      await (client as any).conn.connect();
+      await client.connect();
 
       const tokenRes = await client.get<{ token: string }>('/token');
       const token = tokenRes.data.token;

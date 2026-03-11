@@ -5,7 +5,7 @@ export * from './types';
 export * from './CommunicationTransport';
 
 // Export base classes and their types
-export { ConnectionBase } from '@neorest/core';
+export { ConnectionBase } from './ConnectionBase';
 
 // Export utilities
 export * from './utils/TrackedPromise';

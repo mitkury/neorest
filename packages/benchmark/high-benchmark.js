@@ -53,7 +53,7 @@ function withTimeout(promise, ms, label) {
 
 async function connectClient(url) {
   const client = new Client(url, 'websocket', { reconnect: false });
-  await withTimeout(client.conn.connect(), 5000, 'Connection timeout');
+  await withTimeout(client.connect(), 5000, 'Connection timeout');
   return client;
 }
 
@@ -230,7 +230,7 @@ async function benchmarkMixedLoad() {
     // Create 20 connections
     for (let i = 0; i < 20; i++) {
       const client = new Client(`ws://localhost:${port}`, 'websocket', { reconnect: false });
-      await withTimeout(client.conn.connect(), 10000, 'Connection timeout');
+      await withTimeout(client.connect(), 10000, 'Connection timeout');
       clients.push(client);
     }
     

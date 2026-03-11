@@ -97,7 +97,7 @@ All benchmarks have been validated with:
 If benchmarks fail or hang:
 1. Ensure all dependencies are installed: `npm install`
 2. Check that no other services are using ports 9000-9020
-3. Verify the core package is built: `cd ../../packages/core && npm run build`
+3. Build the runtime package first: `cd ../.. && npm run build`
 4. Run individual tests to isolate issues
 
 ## Performance Targets (Achieved)

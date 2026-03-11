@@ -37,7 +37,7 @@ async function debugTest() {
   
   console.log('🔌 Connecting client...');
   const connectStart = performance.now();
-  await client.conn.connect();
+  await client.connect();
   const connectTime = performance.now() - connectStart;
   console.log(`✅ Connected in ${connectTime.toFixed(2)}ms`);
   

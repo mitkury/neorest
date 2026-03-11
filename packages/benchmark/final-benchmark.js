@@ -35,7 +35,7 @@ async function finalBenchmark(messageCount, batchSize = 10) {
   
   // Connection
   const connectStart = performance.now();
-  await client.conn.connect();
+  await client.connect();
   const connectTime = performance.now() - connectStart;
   console.log(`🔌 Connection: ${connectTime.toFixed(2)}ms`);
   

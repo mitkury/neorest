@@ -6,6 +6,8 @@ node_modules/
 dist/
 build/
 *.tsbuildinfo
+*.tgz
+tmp/
 
 # Prevent committing generated artifacts inside src
 packages/*/src/**/*.js

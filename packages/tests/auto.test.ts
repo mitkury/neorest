@@ -30,7 +30,7 @@ describe('neorest client ↔ node server (auto transport: http first, ws upgrade
 
     try {
       client = new Client(`http://localhost:${port}`, 'auto');
-      await (client as any).conn.connect();
+      await client.connect();
 
       // Initial request/response (should work over HTTP immediately)
       const pong = await client.get('/ping');

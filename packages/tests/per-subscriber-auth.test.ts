@@ -26,8 +26,8 @@ describe('per-subscriber authorization with connection-scoped token', () => {
     const { router, port } = await makeServer();
     const a = new Client(`ws://localhost:${port}`, 'websocket');
     const b = new Client(`ws://localhost:${port}`, 'websocket');
-    await (a as any).conn.connect();
-    await (b as any).conn.connect();
+    await a.connect();
+    await b.connect();
 
     // Set connection-scoped token for client A only
     const setA: any = await new Promise((resolve) => {

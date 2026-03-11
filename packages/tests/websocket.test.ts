@@ -32,7 +32,7 @@ describe('neorest client ↔ node server (websocket)', () => {
 
     try {
       client = new Client(`ws://localhost:${port}`, 'websocket');
-      await (client as any).conn.connect();
+      await client.connect();
 
       // Basic request/response
       const pong = await client.get('/ping');

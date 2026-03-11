@@ -12,11 +12,9 @@
     "outDir": "./dist",
     "baseUrl": ".",
     "paths": {
-      "@neorest/core": ["packages/core/src"],
-      "@neorest/router-core": ["packages/router-core/src"],
-      "@neorest/router-deno": ["packages/router-deno/src"],
-      "@neorest/router-node": ["packages/router-node/src"],
-      "neorest": ["packages/neorest/src"]
+      "neorest": ["packages/neorest/src"],
+      "neorest/node": ["packages/neorest/src/node"],
+      "neorest/core": ["packages/neorest/src/core"]
     }
   },
   "exclude": ["node_modules", "dist"]

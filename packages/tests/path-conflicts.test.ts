@@ -21,7 +21,7 @@ describe('path conflict resolution (static vs parameterized)', () => {
     let client: Client | null = null;
     try {
       client = new Client(`http://localhost:${port}`, 'http');
-      await (client as any).conn.connect();
+      await client.connect();
 
       const res1 = await client.get('/users/new');
       expect(res1.data).toBe('static');
@@ -45,7 +45,7 @@ describe('path conflict resolution (static vs parameterized)', () => {
     let client: Client | null = null;
     try {
       client = new Client(`http://localhost:${port}`, 'http');
-      await (client as any).conn.connect();
+      await client.connect();
 
       const res1 = await client.get('/users/new');
       expect(res1.data).toBe('static');
@@ -74,7 +74,7 @@ describe('path conflict resolution (static vs parameterized)', () => {
     let client: Client | null = null;
     try {
       client = new Client(`http://localhost:${port}`, 'auto');
-      await (client as any).conn.connect();
+      await client.connect();
 
       const received: any[] = [];
       await client.on('/topic/news', (evt) => {

@@ -3,6 +3,7 @@ import type {
   MsgID,
   MsgRoute,
   Payload,
+  BroadcastEvent,
   RouteResponse,
   RouteVerb,
   RouteSubID,
@@ -107,6 +108,14 @@ export class Router {
   }
 
   /**
+   * Start the server.
+   * Alias for listen().
+   */
+  async start(): Promise<void> {
+    await this.listen();
+  }
+
+  /**
    * Stop the server
    * @returns A promise that resolves when the server is stopped
    */
@@ -193,6 +202,27 @@ export class Router {
    */
   broadcastPost(route: string, payload: Payload, exceptConn?: ServerConnection): void {
     this.internalBroadcast(route, "POST", payload, exceptConn);
+  }
+
+  /**
+   * Broadcast an event to all subscribed clients.
+   */
+  broadcast(route: string, event: BroadcastEvent, exceptConn?: ServerConnection): void {
+    switch (event.action) {
+      case "POST":
+        this.broadcastPost(route, event.data, exceptConn);
+        return;
+      case "DELETE":
+        this.broadcastDeletion(route, event.data, exceptConn);
+        return;
+      case "UPDATE":
+        this.broadcastUpdate(route, event.data, exceptConn);
+        return;
+      default: {
+        const action = (event as { action?: string }).action || 'unknown';
+        throw new Error(`Unsupported broadcast action: ${action}`);
+      }
+    }
   }
 
   /**

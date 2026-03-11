@@ -25,7 +25,7 @@ describe('broadcast wildcard default', () => {
   it('delivers without explicit onValidate (default wildcard allows)', async () => {
     const { router, port } = await makeServer(false, true);
     const client = new Client(`ws://localhost:${port}`, 'websocket');
-    await (client as any).conn.connect();
+    await client.connect();
 
     const received: any[] = [];
     await client.on('/topic/news', (evt) => received.push(evt.data));
@@ -48,7 +48,7 @@ describe('broadcast wildcard default', () => {
   it('respects explicit validator that denies', async () => {
     const { router, port } = await makeServer(true, false);
     const client = new Client(`ws://localhost:${port}`, 'websocket');
-    await (client as any).conn.connect();
+    await client.connect();
 
     const received: any[] = [];
     await client.on('/topic/news', (evt) => received.push(evt.data));
@@ -66,7 +66,7 @@ describe('broadcast wildcard default', () => {
   it('respects explicit validator that allows', async () => {
     const { router, port } = await makeServer(true, true);
     const client = new Client(`ws://localhost:${port}`, 'websocket');
-    await (client as any).conn.connect();
+    await client.connect();
 
     const received: any[] = [];
     await client.on('/topic/news', (evt) => received.push(evt.data));

@@ -10,5 +10,5 @@ export type { NodeServerAdapterOptions } from './adapters/NodeServerAdapter';
 export { HttpTransport } from './transports/HttpTransport';
 export { WebSocketTransport } from './transports/WebSocketTransport';
 
-// Re-export from router-core
+// Re-export core server types
 export { ServerConnection, Router } from '../core';

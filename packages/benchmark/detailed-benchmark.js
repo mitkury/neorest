@@ -34,7 +34,7 @@ async function detailedBenchmark(messageCount) {
   
   // Step 1: Connection
   const connectStart = performance.now();
-  await client.conn.connect();
+  await client.connect();
   const connectTime = performance.now() - connectStart;
   console.log(`🔌 Connection: ${connectTime.toFixed(2)}ms`);
   

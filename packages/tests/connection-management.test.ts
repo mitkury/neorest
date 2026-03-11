@@ -46,7 +46,7 @@ describe('Connection Management Tests', () => {
       try {
         // First connection
         client = new Client(`ws://localhost:${serverPort}`, 'websocket');
-        await (client as any).conn.connect();
+        await client.connect();
         
         // Wait for the secret to be set by the server
         let secret = '';
@@ -94,7 +94,7 @@ describe('Connection Management Tests', () => {
         client2 = new Client(`ws://localhost:${serverPort}?secret=${secret}`, 'websocket');
         
         // Connect the new client
-        await (client2 as any).conn.connect();
+        await client2.connect();
 
         // Verify the new client is connected
         expect(client2.isConnected()).toBe(true);
@@ -154,7 +154,7 @@ describe('Connection Management Tests', () => {
       try {
         // First connection
         client = new Client(`ws://localhost:${serverPort}`, 'websocket');
-        await (client as any).conn.connect();
+        await client.connect();
         
         // Wait for the secret to be set by the server
         let secret = '';
@@ -189,7 +189,7 @@ describe('Connection Management Tests', () => {
         // Reconnect with same secret
         client2 = new Client(`ws://localhost:${serverPort}`, 'websocket');
         (client2 as any).conn.setHeader('secret', secret);
-        await (client2 as any).conn.connect();
+        await client2.connect();
 
         // Send messages to trigger broadcasts on both routes
         await client2.post('/send', { message: 'news1' });
@@ -226,7 +226,7 @@ describe('Connection Management Tests', () => {
           originalOnClose();
         };
 
-        await (client as any).conn.connect();
+        await client.connect();
         expect(client.isConnected()).toBe(true);
 
         // Simulate network issues by closing the underlying socket
@@ -268,7 +268,7 @@ describe('Connection Management Tests', () => {
           return originalReconnect.call((client as any).conn);
         };
 
-        await (client as any).conn.connect();
+        await client.connect();
         expect(client.isConnected()).toBe(true);
 
         // Simulate connection drop
@@ -295,7 +295,7 @@ describe('Connection Management Tests', () => {
 
       try {
         client = new Client(`ws://localhost:${serverPort}`, 'websocket');
-        await (client as any).conn.connect();
+        await client.connect();
         
         // Wait for the secret to be set by the server
         let secret = '';
@@ -347,7 +347,7 @@ describe('Connection Management Tests', () => {
 
       try {
         client = new Client(`ws://localhost:${serverPort}`, 'websocket');
-        await (client as any).conn.connect();
+        await client.connect();
         
         // Wait for the secret to be set by the server
         let secret = '';
@@ -407,8 +407,8 @@ describe('Connection Management Tests', () => {
         client1 = new Client(`ws://localhost:${serverPort}`, 'websocket');
         client2 = new Client(`ws://localhost:${serverPort}`, 'websocket');
         
-        await (client1 as any).conn.connect();
-        await (client2 as any).conn.connect();
+        await client1.connect();
+        await client2.connect();
         
         // Wait for secrets to be set by the server
         let secret1 = '';
@@ -476,7 +476,7 @@ describe('Connection Management Tests', () => {
           originalOnClose();
         };
 
-        await (client as any).conn.connect();
+        await client.connect();
         
         // Wait for the secret to be set by the server
         let secret = '';

@@ -182,7 +182,7 @@
             try {
                 log('Connecting to WebSocket...');
                 client = new Client('ws://localhost:3000', 'websocket');
-                await client.conn.connect();
+                await client.connect();
                 isConnected = true;
                 updateStatus();
                 log('✅ Connected to WebSocket!', 'success');

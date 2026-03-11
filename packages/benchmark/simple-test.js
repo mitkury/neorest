@@ -23,7 +23,7 @@ async function simpleTest() {
   
   console.log('Connecting client...');
   const start = performance.now();
-  await client.conn.connect();
+  await client.connect();
   const connectTime = performance.now() - start;
   console.log(`✅ Connected in ${connectTime.toFixed(2)}ms`);
   

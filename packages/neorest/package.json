@@ -9,17 +9,20 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "browser": "./dist/index.browser.js",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs",
       "default": "./dist/index.mjs"
     },
     "./node": {
+      "types": "./dist/node/index.d.ts",
       "import": "./dist/node.mjs",
       "require": "./dist/node.cjs"
     },
     "./browser": "./dist/index.browser.js",
     "./core": {
+      "types": "./dist/core/index.d.ts",
       "import": "./dist/core.mjs",
       "require": "./dist/core.cjs"
     }
@@ -34,7 +37,7 @@
   },
   "scripts": {
     "prebuild": "rimraf dist",
-    "build": "tsup",
+    "build": "tsup && tsc -p tsconfig.json --emitDeclarationOnly --outDir dist",
     "clean": "rimraf dist"
   },
   "author": "Dmitry Kury (https://dkury.com)",
@@ -49,8 +52,7 @@
     "typescript": "^5.0.0",
     "rimraf": "^5.0.0",
     "@types/node": "^20.0.0",
-    "@types/ws": "^8.5.10",
-    "tsup": "^8.4.0"
+    "@types/ws": "^8.5.10"
   },
   "keywords": [
     "REST",

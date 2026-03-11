@@ -21,7 +21,7 @@ describe('neorest client ↔ node server (http)', () => {
 
     try {
       client = new Client(`http://localhost:${port}`, 'http');
-      await (client as any).conn.connect();
+      await client.connect();
 
       const pong = await client.get('/ping');
       expect(pong.data).toBe('pong');

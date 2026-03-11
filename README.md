@@ -1,167 +1,86 @@
 # Neorest
 
-Create real-time routes on top of your REST APIs. Perform regular REST operations (GET, POST, DELETE) on routes, and subscribe to them for live updates. Under the hood, Neorest uses WebSockets (and HTTP long-polling) to deliver real-time events.
+Real-time routes on top of a REST-shaped API.
 
-## Why?
+Neorest lets you keep one route model for request/response and live updates:
 
-Other libraries treat real-time as separate from REST, adding complexity. When you design an API, you already define routes. If you can GET/POST a route, you can SUBSCRIBE to it.
-For example:
-- `/users/{id}`
-- `/posts/{id}`
-- `/posts/{id}/comments`
-- `/chat/threads/{id}`
+- `GET`, `POST`, `DELETE` on routes
+- subscribe to the same routes for broadcasts
+- WebSocket when available, HTTP long-polling fallback when not
+- plain HTTP access to registered server routes
 
-## Quick start
+## Install
 
 ```bash
 npm install neorest
+```
+
+## Node.js server
+
+```ts
+import { NodeRouter } from 'neorest/node';
+
+const router = new NodeRouter({ port: 8080 });
+
+router
+  .onGet('/ping', (ctx) => {
+    ctx.response = 'pong';
+  })
+  .onPost('/messages', (ctx) => {
+    ctx.response = ctx.data;
+    router.broadcast('/messages', { action: 'POST', data: ctx.data }, ctx.sender);
+  });
+
+await router.start();
+```
+
+## Client
+
+```ts
+import { Client } from 'neorest';
+
+const client = new Client('http://localhost:8080', 'auto');
+await client.connect();
+
+const pong = await client.get<string>('/ping');
+
+await client.subscribe('/messages', (event) => {
+  console.log(event.action, event.data);
+});
+
+await client.post('/messages', { text: 'hello' });
+```
+
+## Plain HTTP routes
+
+Registered routes are also available over regular HTTP by default:
+
+```bash
+curl http://localhost:8080/ping
+curl -X POST http://localhost:8080/messages \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"hello"}'
+```
+
+Neorest transport endpoints live under `/.neorest`:
+
+- `GET /.neorest` for handshake
+- `GET /.neorest?poll=true&clientId=...` for polling
+- `POST /.neorest?clientId=...` for sending protocol messages
+
+Set `disableHttpRoutes: true` on `NodeRouter` to expose only the transport endpoints.
+
+## Workspace layout
+
+- `packages/neorest`: published package
+- `packages/tests`: Vitest coverage for HTTP, WebSocket, reconnect, auth, and route matching
+- `packages/benchmark`: ad hoc benchmark scripts
+- `packages/playground`: small demo apps
+
+## Development
+
+```bash
 npm test
 ```
 
-This will build the package and run unit tests that cover:
-- HTTP long-polling client ↔ Node server
-- WebSocket client ↔ Node server
-- Multi-runtime support (Node.js, Browser)
-
-## Multi-Runtime Support
-
-Neorest works across multiple runtimes with a single package:
-
-- **Node.js**: Server and client support
-- **Browser**: Client support with WebSocket and HTTP fallback
-
-## Package Structure
-
-- `packages/neorest`: Main package with multi-runtime support
-- `packages/tests`: Unit tests (Vitest)
-- `packages/benchmark`: Performance benchmarking and stress testing suite
-- `packages/playground`: Example applications and demos
-- `packages/e2e-tests`: E2E tests (Playwright, planned)
-
-## Usage
-
-### Client (Browser/Node.js)
-
-```typescript
-import { Client } from 'neorest';
-
-// Create a client
-const client = new Client('ws://localhost:3000');
-
-// Make REST requests
-const response = await client.get('/users');
-const user = await client.post('/users', { name: 'John' });
-await client.delete('/users/123');
-
-// Subscribe to real-time updates
-client.subscribe('/users', (event) => {
-  console.log('User updated:', event.data);
-});
-```
-
-### Server (Node.js)
-
-```typescript
-import { NodeRouter } from 'neorest/node';
-
-const router = new NodeRouter();
-
-// Define routes
-router.get('/users', (ctx) => {
-  ctx.response = { users: [] };
-});
-
-router.post('/users', (ctx) => {
-  const user = ctx.data;
-  // Save user...
-  ctx.response = { id: 123, ...user };
-  
-  // Broadcast to subscribers
-  router.broadcast('/users', { action: 'POST', data: user });
-});
-
-// Start server
-await router.start(3000);
-```
-
-## Plain HTTP routes (browser-friendly)
-
-- Routes you register on the server are also available over regular HTTP.
-- Open a browser to `http://localhost:8080/ping` and you’ll get a JSON response.
-- Subscriptions/events still use WebSocket (preferred) or HTTP long-polling under `/.neorest`.
-
-Example:
-
-```ts
-// Server
-import { NodeRouter } from 'neorest/node';
-const router = new NodeRouter({ port: 8080 });
-router
-  .onGet('/ping', (ctx) => { ctx.response = 'pong'; })
-  .onPost('/echo', (ctx) => { ctx.response = ctx.data; });
-await router.listen();
-```
-
-```bash
-# Browser or curl
-curl http://localhost:8080/ping
-# => "pong"
-
-curl -X POST http://localhost:8080/echo \
-  -H 'Content-Type: application/json' \
-  -d '{"hello":"world"}'
-# => {"hello":"world"}
-```
-
-Transport endpoints for the Neorest protocol live under `/.neorest`:
-- `GET /.neorest` (handshake, returns `{ clientId }`)
-- `GET /.neorest?poll=true&clientId=...` (poll for messages)
-- `POST /.neorest?clientId=...` (send a message)
-
-To disable plain HTTP routes (only expose `/.neorest` transport), pass `disableHttpRoutes: true` to `NodeRouter`.
-
-## Scripts
-
-- `npm test`: builds package and runs unit tests
-- `npm run test:unit`: alias to `npm test`
-- `npm run test:e2e`: placeholder for Playwright E2E
-
-## Performance Benchmarking
-
-The project includes a comprehensive benchmarking suite to test performance and detect memory leaks:
-
-```bash
-# Run full benchmark suite
-cd packages/benchmark
-node benchmark.js full
-
-# Run stress test only
-node benchmark.js stress --connections=100 --messages=50
-
-# Run memory leak test only
-node benchmark.js memory --iterations=50 --connections-per-iter=20
-```
-
-The benchmark suite includes:
-- **Stress Testing**: Tests connection limits and message throughput
-- **Memory Leak Detection**: Identifies memory leaks in connection lifecycle
-- **Performance Metrics**: Detailed performance analysis and reporting
-- **Automated Testing**: Easy-to-use CLI interface with configurable parameters
-
-See `packages/benchmark/README.md` for detailed usage instructions.
-
-## Development Status
-
-Multi-runtime support with production-ready features:
-- ✅ Core architecture
-- ✅ WebSocket transport (client + server)
-- ✅ HTTP long-polling transport (client + server)
-- ✅ Node.js router and adapter
-- ✅ Multi-runtime package structure
-- ✅ Unit tests that verify HTTP and WebSocket flows
-- 🚧 E2E tests (Playwright)
-- 🚧 Auth/security, versioning, metrics, docs
-
-## License
-
-MIT
+That builds `neorest` and runs the unit tests.

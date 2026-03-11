@@ -21,7 +21,7 @@ try {
   console.log('✅ Client created successfully');
   
   console.log('Attempting to connect with 3 second timeout...');
-  const connectPromise = client.conn.connect();
+  const connectPromise = client.connect();
   const timeoutPromise = new Promise((_, reject) => 
     setTimeout(() => reject(new Error('Connection timeout after 3 seconds')), 3000)
   );
