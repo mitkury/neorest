@@ -1,5 +1,7 @@
 ## Neorest Architecture
 
+For the connection/session lifecycle specifically, see [docs/connections.md](/Users/dk/repos/neorest/docs/connections.md).
+
 ### Workspace
 
 - `packages/neorest`: published runtime package
@@ -96,4 +98,3 @@ await client.post('/messages', { text: 'hello' });
 - Node servers use `neorest/node`.
 - Client-side routes disallow `:`, while server route patterns support parameters such as `/topic/:name`.
 - HTTP transport responses may contain multiple queued protocol messages; the client transport handles both single and array responses.
-

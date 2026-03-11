@@ -84,3 +84,5 @@ npm test
 ```
 
 That builds `neorest` and runs the unit tests.
+
+For a short explanation of how Neorest connections, transport upgrades, and reconnects work, see [docs/connections.md](/Users/dk/repos/neorest/docs/connections.md).

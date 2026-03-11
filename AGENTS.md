@@ -88,11 +88,15 @@ npm test
 ```
 
 That builds `neorest` and runs the unit tests.
+
+For a short explanation of how Neorest connections, transport upgrades, and reconnects work, see [docs/connections.md](/Users/dk/repos/neorest/docs/connections.md).
 ---
 
 # From docs/architecture.md:
 
 ## Neorest Architecture
+
+For the connection/session lifecycle specifically, see [docs/connections.md](/Users/dk/repos/neorest/docs/connections.md).
 
 ### Workspace
 
@@ -208,6 +212,13 @@ await client.post('/messages', { text: 'hello' });
     "build": "npm run build -w neorest",
     "test": "npm run build && npm run test -w @neorest/tests"
   },
+  "overrides": {
+    "brace-expansion": "^2.0.2",
+    "glob": "^10.5.0",
+    "minimatch": "^9.0.7",
+    "rollup": "^4.59.0",
+    "vite": "^6.3.6"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/mitkury/neorest.git"
@@ -221,6 +232,8 @@ await client.post('/messages', { text: 'hello' });
     "Subscriptions"
   ],
   "devDependencies": {
-    "typescript": "^5.0.0"
+    "tsup": "^8.5.1",
+    "typescript": "^5.0.0",
+    "vitest": "^3.2.4"
   }
 }
