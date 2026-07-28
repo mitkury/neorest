@@ -11,6 +11,7 @@ export type {
   HttpRateLimitOptions,
   NodeRequestHandlers,
   NodeServerAdapterOptions,
+  WebTransportServerOptions,
 } from './adapters/NodeServerAdapter';
 
 // Export transports

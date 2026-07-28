@@ -34,13 +34,18 @@ authorization should use `connection.getIdentity()`.
 
 ## Transports
 
-Neorest supports three client transport modes:
+Neorest supports four client transport modes:
 
+- `webtransport`: authenticated HTTP bootstrap followed by HTTP/3
 - `websocket`: direct WebSocket connection
 - `http`: HTTP long-polling over `/.neorest`
-- `auto`: connect over HTTP first, then try to upgrade to WebSocket
+- `auto`: connect over HTTP first, then try WebTransport and WebSocket in
+  configured preference order
 
-On Node.js, `NodeServerAdapter` exposes the transport endpoints under `/.neorest` and optionally accepts WebSocket upgrades.
+On Node.js, `NodeServerAdapter` exposes the transport endpoints under
+`/.neorest`, optionally accepts WebSocket upgrades, and can start an optional
+HTTP/3/UDP listener. Every transport implements the same small communication
+contract; route and connection code has no transport-specific branches.
 
 ## Lifecycle
 
@@ -70,14 +75,30 @@ When reconnect succeeds, the client keeps using the same logical session and res
 
 HTTP long-polling has an extra transport-local `clientId` used only for the polling channel:
 
-- `GET /.neorest` returns `{ clientId, upgradeToken }`
+- `GET /.neorest` returns `{ clientId, upgradeToken, webTransportUrl? }`
 - `POST /.neorest?clientId=...` sends a protocol message
 - `GET /.neorest?poll=true&clientId=...` holds until a queued message arrives
   or the configured long-poll timeout expires
 
 `clientId` identifies the HTTP polling transport. The connection `secret` identifies the logical Neorest session.
-The short-lived `upgradeToken` authorizes the automatic replacement of that
-active HTTP transport with WebSocket; it is not an application auth token.
+The short-lived, single-use `upgradeToken` authorizes the automatic replacement
+of that active HTTP transport with WebSocket or WebTransport; it is not an
+application auth token. WebTransport uses this ticket because its CONNECT
+request does not automatically send cookies or HTTP authentication. Newer API
+versions allow caller-supplied headers, but cannot expose an HttpOnly cookie.
+
+## WebTransport specifics
+
+Neorest sends its existing JSON protocol over one reliable bidirectional
+WebTransport stream. Each JSON envelope has a four-byte network-order length
+prefix. The decoder handles fragmented and coalesced stream reads. Frame size,
+queued write bytes, stream setup time, and connection setup time are bounded.
+
+WebTransport is a client/server transport, not a peer-to-peer media transport.
+Its streams are useful for independent RPC/event flows and its datagrams can
+support future lossy application events. WebRTC remains the appropriate path
+for browser microphone/audio tracks, echo cancellation, jitter buffering, and
+peer media negotiation.
 
 ## What is connection-scoped
 

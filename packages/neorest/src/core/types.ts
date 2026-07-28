@@ -349,6 +349,28 @@ export interface ConnectionOptions {
    * Headers included in every route message.
    */
   headers?: Record<string, string>;
+  /**
+   * Ordered upgrade preference used by auto mode. HTTP is always retained as
+   * the final fallback and does not need to be listed.
+   */
+  transports?: Array<'webtransport' | 'websocket'>;
+  /**
+   * Browser WebTransport connection and framing limits.
+   */
+  webTransport?: WebTransportClientOptions;
+}
+
+export interface WebTransportCertificateHash {
+  algorithm: string;
+  value: BufferSource;
+}
+
+export interface WebTransportClientOptions {
+  connectTimeoutMs?: number;
+  maxFrameBytes?: number;
+  maxBufferedBytes?: number;
+  streamTimeoutMs?: number;
+  serverCertificateHashes?: WebTransportCertificateHash[];
 }
 
 /**

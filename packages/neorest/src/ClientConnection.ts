@@ -12,6 +12,7 @@ import {
   RouteResponse,
   RouteVerb,
   Payload,
+  TransportMode,
   newConnectionSecret,
 } from './core';
 import { createTransport } from './transports/index';
@@ -32,6 +33,7 @@ export class ClientConnection extends ConnectionBase {
   private defaultRequestHeaders: Record<string, string> = {};
   private requestTimeoutMs?: number;
   private connectionChangeListeners = new Set<(connected: boolean) => void>();
+  private readonly connectionOptions: ConnectionOptions;
   
   /**
    * Event called when client is connected
@@ -45,6 +47,7 @@ export class ClientConnection extends ConnectionBase {
    */
   constructor(transport: ClientTransport, options?: ConnectionOptions) {
     super(transport);
+    this.connectionOptions = options ?? {};
     
     // Extract secret from transport URL if available, otherwise generate one
     const connectionInfo = transport.getConnectionInfo();
@@ -112,7 +115,7 @@ export class ClientConnection extends ConnectionBase {
    * @param url - The URL to connect to
    * @param transportType - The type of transport to use
    */
-  public async setUrl(url: string, transportType?: 'websocket' | 'http' | 'auto'): Promise<void> {
+  public async setUrl(url: string, transportType?: TransportMode): Promise<void> {
     // Create new transport
     const type = transportType || this.getTransportType();
     
@@ -121,7 +124,10 @@ export class ClientConnection extends ConnectionBase {
     const existingSecret = urlObj.searchParams.get('secret');
     
     let connectionUrl = url;
-    if (!existingSecret && (type === 'websocket' || (type === 'auto' && url.startsWith('ws')))) {
+    if (
+      !existingSecret
+      && (type === 'websocket' || (type === 'auto' && url.startsWith('ws')))
+    ) {
       // Generate a secret for this connection only if none exists
       const secret = newConnectionSecret();
       urlObj.searchParams.set('secret', secret);
@@ -131,7 +137,7 @@ export class ClientConnection extends ConnectionBase {
       this.setHeader('secret', existingSecret);
     }
     
-    const transport = createTransport(type, connectionUrl);
+    const transport = createTransport(type, connectionUrl, this.connectionOptions);
     this.url = connectionUrl;
     this.applyConnectionSecret(transport);
     
@@ -166,14 +172,14 @@ export class ClientConnection extends ConnectionBase {
    * Get the transport type
    * @returns The transport type
    */
-  public getTransportType(): 'websocket' | 'http' | 'auto' {
+  public getTransportType(): TransportMode {
     const clientTransport = this.transport as ClientTransport;
     const mode = clientTransport.getConnectionMode?.();
     if (mode) {
       return mode;
     }
     const type = clientTransport.getConnectionInfo().type;
-    if (type === 'websocket' || type === 'http') {
+    if (type === 'websocket' || type === 'webtransport' || type === 'http') {
       return type;
     }
     
@@ -440,7 +446,11 @@ export class ClientConnection extends ConnectionBase {
       this.isReconnecting = true;
       // Create new transport with same URL
       const transportType = this.getTransportType();
-      const transport = createTransport(transportType, this.url);
+      const transport = createTransport(
+        transportType,
+        this.url,
+        this.connectionOptions,
+      );
       this.applyConnectionSecret(transport);
 
       await this.replaceTransport(transport);

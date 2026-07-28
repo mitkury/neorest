@@ -14,6 +14,7 @@ session-scoped media transport.
 ```text
 Sila browser
   -> Neorest GET/POST/DELETE + subscriptions
+     (WebTransport -> WebSocket -> held HTTP)
   -> Sila workspace app server
   -> workspace/thread runtime
 
@@ -142,6 +143,9 @@ await refreshThreads();
 
 No session token is exposed to client JavaScript. Same-origin HTTP requests and
 WebSocket handshakes carry the Better Auth HttpOnly cookie automatically.
+WebTransport uses a single-use upgrade ticket issued by that authenticated HTTP
+bootstrap, so it inherits the same immutable Better Auth identity without
+reading the cookie in JavaScript.
 
 Treat subscriptions as invalidation or event delivery, not as the only copy of
 durable state. On a restored connection, refetch the relevant snapshot. This
@@ -191,6 +195,9 @@ Production voice requirements learned from WorldAgents:
 
 Do not put general thread synchronization on the WebRTC data channel. It is
 owned by one live voice session; Neorest remains the application transport.
+WebTransport is a strong option for Neorest signaling, streamed agent progress,
+cancellation, presence, and other server-mediated realtime events. It does not
+replace WebRTC audio tracks or TURN.
 
 ## Neorest constraints that still matter
 
@@ -214,3 +221,5 @@ owned by one live voice session; Neorest remains the application transport.
 5. Stabilize append-only thread events and idempotent message creation.
 6. Add voice sessions with the WorldAgents WebRTC contract as a separate
    realtime module.
+7. Enable WebTransport after the deployment path accepts HTTP/3/UDP, retaining
+   WebSocket and held HTTP in the client preference list.

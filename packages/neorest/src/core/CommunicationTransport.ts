@@ -1,5 +1,14 @@
 import { MsgWrapper } from './types';
 
+export type TransportKind = 'http' | 'websocket' | 'webtransport';
+export type TransportMode = TransportKind | 'auto';
+
+export interface TransportUpgradeInfo {
+  clientId: string;
+  token: string;
+  webTransportUrl?: string;
+}
+
 /**
  * Base communication transport interface
  */
@@ -65,7 +74,7 @@ export interface ClientTransport extends CommunicationTransport {
    * Get the configured transport mode. Auto transports may report a different
    * currently active transport in getConnectionInfo().
    */
-  getConnectionMode?(): 'websocket' | 'http' | 'auto';
+  getConnectionMode?(): TransportMode;
 }
 
 /**
@@ -92,6 +101,6 @@ export interface ServerTransport extends CommunicationTransport {
 export interface ConnectionInfo {
   id: string;
   url: string;
-  type: 'websocket' | 'http';
+  type: TransportKind;
   status: 'connecting' | 'connected' | 'disconnected';
 }

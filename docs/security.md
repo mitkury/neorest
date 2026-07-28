@@ -13,6 +13,9 @@ This document summarizes how Neorest creates and maintains sessions, what can go
     replaced with the secret alone.
   - HTTP-to-WebSocket auto-upgrades also carry a short-lived, server-issued
     token tied to the HTTP handshake.
+  - WebTransport always uses that authenticated HTTP bootstrap because its
+    CONNECT request does not automatically carry cookies or HTTP
+    authentication. Its upgrade ticket is short-lived and single-use.
 - **Handshake authentication**: `authenticateConnection` can validate native
   HTTP or WebSocket headers, including HttpOnly session cookies, before a
   connection is created. Returning `null` rejects the handshake.
@@ -36,9 +39,9 @@ This document summarizes how Neorest creates and maintains sessions, what can go
   longer active.
 - With handshake authentication enabled, reconnects must present the same
   application identity as the existing connection.
-- Possession of a secret alone does not replace an active transport. The
-  automatic HTTP-to-WebSocket replacement requires the server-issued handshake
-  token.
+- Possession of a secret alone does not replace an active transport. Automatic
+  HTTP-to-WebSocket or HTTP-to-WebTransport replacement requires the
+  server-issued handshake token.
 - CORS defaults to `*` for backward compatibility. Cookie-authenticated
   deployments should configure an explicit origin with `credentials: true`;
   disallowed origins receive 403.
@@ -90,11 +93,14 @@ This document summarizes how Neorest creates and maintains sessions, what can go
   session to the new transport and continues to work.
 - Reconnecting with a random `?secret=` does not attach to any existing session.
 - Presenting another client’s secret while its transport is active is rejected.
-- HTTP-to-WebSocket replacement requires the HTTP handshake upgrade token.
+- HTTP-to-WebSocket and HTTP-to-WebTransport replacement require the HTTP
+  handshake upgrade token, and a ticket cannot be replayed.
 - Cookie-backed handshake identity is immutable and is required again on
   transport replacement.
 - Unauthorized subscriptions receive 403 and do not install listeners.
 - Configured origins are enforced for HTTP and WebSocket handshakes.
+- Configured origins are enforced for WebTransport CONNECT requests when the
+  browser supplies an Origin header.
 - HTTP and protocol message limits return 429.
 - Empty fallback polls stay open until data or timeout.
 - Client-side rate limit: attempting to send >100 messages in one second yields an error response locally.

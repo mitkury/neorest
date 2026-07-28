@@ -3,6 +3,7 @@ export { Client } from './Client';
 
 // Export transports for advanced usage
 export { WebSocketTransport } from './transports/WebSocketTransport';
+export { WebTransportTransport } from './transports/WebTransportTransport';
 export { HttpTransport } from './transports/HttpTransport';
 export { AutoTransport } from './transports/AutoTransport';
 export { createTransport } from './transports';
@@ -22,4 +23,8 @@ export type {
   MsgType,
   MsgWrapper,
   ConnectionSecret,
+  TransportKind,
+  TransportMode,
+  WebTransportCertificateHash,
+  WebTransportClientOptions,
 } from './core';

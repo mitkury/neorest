@@ -10,8 +10,19 @@ import {
 import type { Duplex } from 'stream';
 import { randomUUID } from 'crypto';
 import type { ConnectionIdentity, ConnectionSecret } from '../../core';
-import { Router, type ServerAdapter } from '../../core';
+import {
+  isMessageWrapper,
+  Router,
+  WebTransportSessionTransport,
+  type ServerAdapter,
+} from '../../core';
 import { HttpTransport } from '../transports/HttpTransport';
+import {
+  WebTransportServerHost,
+  type AuthorizedWebTransportSession,
+  type WebTransportServerOptions,
+} from './WebTransportServerHost';
+export type { WebTransportServerOptions } from './WebTransportServerHost';
 
 export interface CorsOptions {
   /**
@@ -66,6 +77,10 @@ export interface NodeServerAdapterOptions {
   port?: number;
   hostname?: string;
   /**
+   * Shared logical connection cap passed through from Router options.
+   */
+  maxConnections?: number | false;
+  /**
    * @deprecated Use NodeRouter.createHandlers() to compose Neorest with an
    * existing Node/SvelteKit server.
    */
@@ -75,6 +90,11 @@ export interface NodeServerAdapterOptions {
     cert: string;
   };
   disableWebSocket?: boolean;
+  /**
+   * Enable the optional HTTP/3 WebTransport listener. WebTransport uses UDP
+   * and can share the same numeric port as the TCP HTTP server.
+   */
+  webTransport?: false | WebTransportServerOptions;
   disableHttpRoutes?: boolean;
   maxRequestBodyBytes?: number;
   /**
@@ -116,6 +136,7 @@ export class NodeServerAdapter implements ServerAdapter {
   private router?: Router;
   private server: HttpServer | HttpsServer | null = null;
   private wsServer: any | null = null;
+  private webTransportServer: WebTransportServerHost | null = null;
   private initialized = false;
   private standalone = false;
   private readonly httpConnections = new Map<string, HttpTransport>();
@@ -211,6 +232,8 @@ export class NodeServerAdapter implements ServerAdapter {
     this.httpConnectionPromises.clear();
     this.httpUpgradeTokens.clear();
     this.requestRateLimits.clear();
+    await this.webTransportServer?.stop();
+    this.webTransportServer = null;
 
     if (this.wsServer) {
       await new Promise<void>((resolve) => {
@@ -334,6 +357,13 @@ export class NodeServerAdapter implements ServerAdapter {
       this.rejectUpgrade(socket, 503, 'Server connection limit reached');
       return true;
     }
+    const hadHttpConnection = Boolean(
+      url.searchParams.get('clientId')
+      && (
+        this.httpConnections.has(url.searchParams.get('clientId')!)
+        || this.httpConnectionPromises.has(url.searchParams.get('clientId')!)
+      ),
+    );
     const upgradeEntry = this.consumeHttpUpgradeToken(
       url.searchParams.get('clientId'),
       url.searchParams.get('upgradeToken'),
@@ -352,7 +382,7 @@ export class NodeServerAdapter implements ServerAdapter {
       void this.handleWebSocketConnection(
         ws,
         reconnectSecret,
-        Boolean(upgradeEntry),
+        Boolean(upgradeEntry && hadHttpConnection),
         identity,
       );
     });
@@ -368,17 +398,54 @@ export class NodeServerAdapter implements ServerAdapter {
     }
     this.router = router;
     this.initialized = true;
-    if (this.options.disableWebSocket) {
-      return;
+    if (!this.options.disableWebSocket) {
+      try {
+        const { WebSocketServer } = await import('ws');
+        this.wsServer = new WebSocketServer({
+          noServer: true,
+          maxPayload: this.options.maxRequestBodyBytes,
+        });
+      } catch {
+        this.wsServer = null;
+      }
     }
-    try {
-      const { WebSocketServer } = await import('ws');
-      this.wsServer = new WebSocketServer({
-        noServer: true,
-        maxPayload: this.options.maxRequestBodyBytes,
-      });
-    } catch {
-      this.wsServer = null;
+    if (this.options.webTransport) {
+      const configured = this.options.webTransport;
+      const cert = configured.cert ?? this.options.ssl?.cert;
+      const privateKey = configured.privateKey ?? this.options.ssl?.key;
+      if (!cert || !privateKey) {
+        throw new Error(
+          'WebTransport requires a TLS certificate and private key in '
+          + 'webTransport or ssl options',
+        );
+      }
+      this.webTransportServer = new WebTransportServerHost(
+        {
+          ...configured,
+          port: configured.port ?? this.options.port ?? 8080,
+          hostname: configured.hostname ?? this.options.hostname ?? 'localhost',
+          cert,
+          privateKey,
+          maxConnections: configured.maxConnections ?? (
+            this.options.maxConnections === false
+              ? undefined
+              : this.options.maxConnections ?? 10_000
+          ),
+        },
+        (url, headers) => this.authorizeWebTransport(url, headers),
+        (session, authorization) => this.handleWebTransportConnection(
+          session,
+          authorization,
+        ),
+      );
+      try {
+        await this.webTransportServer.start();
+      } catch (error) {
+        this.webTransportServer = null;
+        this.initialized = false;
+        this.router = undefined;
+        throw error;
+      }
     }
   }
 
@@ -448,9 +515,16 @@ export class NodeServerAdapter implements ServerAdapter {
       this.httpUpgradeTokens.set(newClientId, {
         token: upgradeToken,
         expiresAt: Date.now() + 30_000,
+        secret: reconnectSecret as ConnectionSecret | undefined,
         identity,
       });
-      this.respond(req, res, 200, { clientId: newClientId, upgradeToken });
+      this.respond(req, res, 200, {
+        clientId: newClientId,
+        upgradeToken,
+        ...(this.webTransportServer
+          ? { webTransportUrl: this.webTransportServer.publicUrl(req.headers.host) }
+          : {}),
+      });
       return;
     }
 
@@ -688,7 +762,6 @@ export class NodeServerAdapter implements ServerAdapter {
       || entry.expiresAt < Date.now()
       || entry.token !== token
       || entry.secret !== reconnectSecret
-      || !this.httpConnections.has(clientId)
     ) {
       return null;
     }
@@ -866,6 +939,107 @@ export class NodeServerAdapter implements ServerAdapter {
     ) {
       throw new Error('CORS credentials require an explicit origin');
     }
+    if (this.options.webTransport) {
+      if (
+        this.options.webTransport.hostname !== undefined
+        && !this.options.webTransport.hostname
+      ) {
+        throw new Error('webTransport.hostname must not be empty');
+      }
+      if (
+        this.options.webTransport.secret !== undefined
+        && !this.options.webTransport.secret
+      ) {
+        throw new Error('webTransport.secret must not be empty');
+      }
+      for (const [name, value] of Object.entries(this.options.webTransport)) {
+        if (
+          name !== 'hostname'
+          && name !== 'publicUrl'
+          && name !== 'cert'
+          && name !== 'privateKey'
+          && name !== 'secret'
+          && value !== undefined
+          && (!Number.isInteger(value) || (value as number) <= 0)
+        ) {
+          throw new Error(`webTransport.${name} must be a positive integer`);
+        }
+        if (name === 'port' && (value as number) > 65_535) {
+          throw new Error('webTransport.port must be at most 65535');
+        }
+      }
+      if (
+        this.options.webTransport.publicUrl
+        && new URL(this.options.webTransport.publicUrl).protocol !== 'https:'
+      ) {
+        throw new Error('webTransport.publicUrl must use https');
+      }
+      if (
+        this.options.webTransport.maxBufferedBytes !== undefined
+        && this.options.webTransport.maxBufferedBytes < (
+          this.options.webTransport.maxFrameBytes
+          ?? this.options.maxRequestBodyBytes
+          ?? 1024 * 1024
+        )
+      ) {
+        throw new Error(
+          'webTransport.maxBufferedBytes must be at least as large as '
+          + 'webTransport.maxFrameBytes',
+        );
+      }
+    }
+  }
+
+  private authorizeWebTransport(
+    url: URL,
+    headers: Record<string, string>,
+  ): AuthorizedWebTransportSession | null {
+    const origin = headers.origin;
+    if (!this.isOriginAllowed(origin)) return null;
+    const reconnectSecret = url.searchParams.get('secret');
+    const clientId = url.searchParams.get('clientId');
+    const hadHttpConnection = Boolean(
+      clientId
+      && (
+        this.httpConnections.has(clientId)
+        || this.httpConnectionPromises.has(clientId)
+      ),
+    );
+    if (!this.router?.canAcceptConnection(reconnectSecret)) return null;
+    const entry = this.consumeHttpUpgradeToken(
+      clientId,
+      url.searchParams.get('upgradeToken'),
+      reconnectSecret,
+    );
+    if (!entry || !reconnectSecret) return null;
+    return {
+      reconnectSecret: reconnectSecret as ConnectionSecret,
+      identity: entry.identity,
+      allowActiveReplacement: hadHttpConnection,
+    };
+  }
+
+  private async handleWebTransportConnection(
+    session: import('../../core').WebTransportSessionLike,
+    authorization: AuthorizedWebTransportSession,
+  ): Promise<void> {
+    if (!this.router) return;
+    const configured = this.options.webTransport || {};
+    const transport = new WebTransportSessionTransport(session, {
+      role: 'server',
+      maxFrameBytes: configured.maxFrameBytes ?? this.options.maxRequestBodyBytes,
+      maxBufferedBytes: configured.maxBufferedBytes,
+      streamTimeoutMs: configured.streamTimeoutMs,
+    });
+    const connection = await this.router.handleNewConnection(
+      transport,
+      authorization.reconnectSecret,
+      authorization.allowActiveReplacement,
+      authorization.identity,
+    );
+    if (!transport.isConnected()) {
+      await connection.connect();
+    }
   }
 }
 
@@ -873,18 +1047,4 @@ class RequestBodyTooLargeError extends Error {
   constructor(maxBytes: number) {
     super(`Request body exceeds the ${maxBytes} byte limit`);
   }
-}
-
-function isMessageWrapper(value: unknown): value is {
-  id: number;
-  msg: { type: string };
-} {
-  if (!value || typeof value !== 'object') return false;
-  const candidate = value as { id?: unknown; msg?: { type?: unknown } };
-  return (
-    Number.isInteger(candidate.id)
-    && (candidate.id as number) >= -1
-    && Boolean(candidate.msg)
-    && typeof candidate.msg?.type === 'string'
-  );
 }

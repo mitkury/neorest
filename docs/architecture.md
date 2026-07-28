@@ -15,7 +15,8 @@ Inside `packages/neorest/src`:
 
 - `core/`: shared protocol types, `ConnectionBase`, router, server connection, auth helper, path matching
 - `node/`: `NodeRouter`, HTTP server adapter, Node-only transports
-- `transports/`: client transports for WebSocket, HTTP long-polling, and auto-upgrade
+- `transports/`: client transports for WebTransport, WebSocket, HTTP
+  long-polling, and adaptive auto-upgrade
 - `Client.ts` and `ClientConnection.ts`: public client API and client-side connection state
 
 ### Core model
@@ -43,7 +44,10 @@ User-facing request methods return `RouteResponse<T>`. Subscription callbacks re
 
 - `WebSocketTransport`: browser-style WebSocket client transport
 - `HttpTransport`: handshake + held long-poll/send HTTP fallback under `/.neorest`
-- `AutoTransport`: connects over HTTP first, then upgrades to WebSocket when available and falls back to HTTP on WS send failure
+- `WebTransportTransport`: exchanges the authenticated HTTP bootstrap for a
+  single-use HTTP/3 upgrade and adapts one framed bidirectional stream
+- `AutoTransport`: connects over HTTP first, then tries WebTransport and
+  WebSocket in preference order and falls back to held HTTP
 
 ### Node server side
 
@@ -52,6 +56,9 @@ User-facing request methods return `RouteResponse<T>`. Subscription callbacks re
   composable request and WebSocket-upgrade handlers for an existing server.
 - Plain HTTP access to registered routes is enabled by default and can be disabled with `disableHttpRoutes`.
 - WebSocket support can be disabled explicitly with `disableWebSocket`.
+- WebTransport support is opt-in. It runs through a small provider boundary so
+  the HTTP/3 implementation can be replaced without changing Router or
+  Connection code.
 - Handshake authentication can bind cookie-backed application identity to a
   connection before any protocol message or subscription is accepted.
 - CORS, payload limits, held-poll duration, HTTP request limits, connection
@@ -71,6 +78,8 @@ The test suite currently covers:
 - handshake identity and subscription-registration authorization
 - existing-server handler composition
 - held long polling, configurable origins, and server-side limits
+- WebTransport framing, bootstrap tickets, immutable identity, and a real
+  HTTP/3 route flow
 - path conflict resolution and duplicate-subscription prevention
 
 ### Minimal usage

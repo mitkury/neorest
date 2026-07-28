@@ -10,6 +10,7 @@ export { ConnectionBase } from './ConnectionBase';
 // Export utilities
 export * from './utils/TrackedPromise';
 export * from './utils/connectionSecret';
+export * from './utils/MessageFrameCodec';
 
 // Export main router class
 export { Router } from './Router';
@@ -37,6 +38,7 @@ export type {
 // Export transports
 export { WebSocketTransport } from './transports/WebSocketTransport';
 export { HttpTransportBase } from './transports/HttpTransportBase';
+export * from './transports/WebTransportSessionTransport';
 export { withAuth } from './middleware';
 
 // Export utility functions

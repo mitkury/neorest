@@ -1,4 +1,9 @@
-import { MsgWrapper, ClientTransport, ConnectionInfo } from '../core';
+import {
+  MsgWrapper,
+  ClientTransport,
+  ConnectionInfo,
+  TransportUpgradeInfo,
+} from '../core';
 
 /**
  * HTTP-based communication transport using long polling
@@ -19,6 +24,7 @@ export class HttpTransport implements ClientTransport {
   private connectionSecret: string | null = null;
   private pendingSends = 0;
   private upgradeToken: string | null = null;
+  private webTransportUrl: string | null = null;
 
   /**
    * Constructor
@@ -53,12 +59,19 @@ export class HttpTransport implements ClientTransport {
         throw new Error(`HTTP transport handshake failed: ${res.status}`);
       }
 
-      const data = await res.json() as { clientId?: unknown; upgradeToken?: unknown };
+      const data = await res.json() as {
+        clientId?: unknown;
+        upgradeToken?: unknown;
+        webTransportUrl?: unknown;
+      };
       if (typeof data?.clientId !== 'string' || !data.clientId) {
         throw new Error('HTTP transport handshake returned an invalid clientId');
       }
       this.clientId = data.clientId;
       this.upgradeToken = typeof data.upgradeToken === 'string' ? data.upgradeToken : null;
+      this.webTransportUrl = typeof data.webTransportUrl === 'string'
+        ? data.webTransportUrl
+        : null;
       this.connectionInfo.id = this.clientId;
     } catch (error) {
       this.connectionInfo.status = 'disconnected';
@@ -201,13 +214,14 @@ export class HttpTransport implements ClientTransport {
     return this.pendingSends > 0;
   }
 
-  getUpgradeInfo(): { clientId: string; token: string } | null {
+  getUpgradeInfo(): TransportUpgradeInfo | null {
     if (!this.clientId || !this.upgradeToken) {
       return null;
     }
     return {
       clientId: this.clientId,
       token: this.upgradeToken,
+      ...(this.webTransportUrl ? { webTransportUrl: this.webTransportUrl } : {}),
     };
   }
 

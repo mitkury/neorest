@@ -8,6 +8,13 @@ REST-style routes with real-time subscriptions.
 npm install neorest
 ```
 
+Optional production WebTransport server support requires Node.js 20+:
+
+```bash
+npm install @fails-components/webtransport \
+  @fails-components/webtransport-transport-http3-quiche
+```
+
 ## Server
 
 ```ts
@@ -61,13 +68,18 @@ await client.post('/messages', { text: 'hello' });
 - `router.broadcast(route, event, exceptConn?)`
 - `router.onAuthorizeSubscription(route, authorize)`
 - `router.onValidateBroadcast(route, validate)`
-- `router.createHandlers()` for an existing Node/SvelteKit server
+- `router.createHandlers()` for an existing Node/SvelteKit TCP server
 - `router.start()` or `router.listen()`
 - `router.close()`
 
 ## Notes
 
 - `neorest/node` is the Node.js server entrypoint.
+- Auto mode prefers advertised WebTransport, then WebSocket, then held HTTP.
+- Enable the HTTP/3/UDP listener with
+  `webTransport: { port, hostname, publicUrl, cert, privateKey }`.
+- WebTransport inherits cookie authentication through a short-lived,
+  single-use ticket issued by the ordinary HTTP handshake.
 - Registered routes are also exposed over plain HTTP unless `disableHttpRoutes` is set.
 - Transport endpoints live under `/.neorest`.
 - `authenticateConnection` receives standards-compatible request `Headers`,

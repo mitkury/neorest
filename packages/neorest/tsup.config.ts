@@ -14,7 +14,11 @@ export default defineConfig([
     sourcemap: true,
     clean: true,
     treeshake: true,
-    external: ['ws'],
+    external: [
+      'ws',
+      '@fails-components/webtransport',
+      '@fails-components/webtransport-transport-http3-quiche',
+    ],
     outDir: 'dist',
     target: 'node18',
     platform: 'node',
