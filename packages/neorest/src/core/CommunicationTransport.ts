@@ -60,6 +60,12 @@ export interface ClientTransport extends CommunicationTransport {
    * @returns Connection information
    */
   getConnectionInfo(): ConnectionInfo;
+
+  /**
+   * Get the configured transport mode. Auto transports may report a different
+   * currently active transport in getConnectionInfo().
+   */
+  getConnectionMode?(): 'websocket' | 'http' | 'auto';
 }
 
 /**
@@ -86,6 +92,6 @@ export interface ServerTransport extends CommunicationTransport {
 export interface ConnectionInfo {
   id: string;
   url: string;
-  type: 'websocket' | 'http' | 'sse';
+  type: 'websocket' | 'http';
   status: 'connecting' | 'connected' | 'disconnected';
 }

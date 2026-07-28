@@ -336,8 +336,18 @@ export function new_SendAndForgetMsgWrapper(msg: MsgType): MsgWrapper {
  * Options for client connection
  */
 export interface ConnectionOptions {
+  /**
+   * Reconnect policy. Reconnect is enabled with defaults unless set to false.
+   */
   reconnect?: boolean | ReconnectOptions;
+  /**
+   * Maximum time to wait for a protocol response. A timeout resolves the
+   * request with status 408; it cannot cancel handler work already on server.
+   */
   timeout?: number;
+  /**
+   * Headers included in every route message.
+   */
   headers?: Record<string, string>;
 }
 
@@ -419,6 +429,29 @@ export type OutRouteLayer = {
 };
 
 /**
+ * Immutable application identity established while accepting a connection.
+ * The `id` should be a stable user or service-account identifier.
+ */
+export interface ConnectionIdentity {
+  id: string;
+  [key: string]: unknown;
+}
+
+export interface SubscriptionAuthorizationResult {
+  allowed: boolean;
+  status?: number;
+  error?: string;
+}
+
+export type SubscriptionAuthorizer = (
+  conn: ServerConnection,
+  params: Record<string, string>,
+) =>
+  | boolean
+  | SubscriptionAuthorizationResult
+  | Promise<boolean | SubscriptionAuthorizationResult>;
+
+/**
  * Request context for route handlers
  */
 export interface RequestContext {
@@ -438,6 +471,16 @@ export interface RequestContext {
 export interface RouterOptions {
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
   validateRoutes?: boolean;
+  /**
+   * Maximum accepted protocol messages per connection per second.
+   * Set to false to disable. Defaults to 100.
+   */
+  maxMessagesPerSecond?: number | false;
+  /**
+   * Maximum number of logical connections retained by this router.
+   * Set to false to disable. Defaults to 10,000.
+   */
+  maxConnections?: number | false;
 }
 
 /**

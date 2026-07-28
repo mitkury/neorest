@@ -1,5 +1,6 @@
 import { Router, RouterOptions } from '../core';
 import { NodeServerAdapter, NodeServerAdapterOptions } from './adapters/NodeServerAdapter';
+import type { NodeRequestHandlers } from './adapters/NodeServerAdapter';
 
 /**
  * Node.js-specific router options
@@ -36,5 +37,13 @@ export class NodeRouter extends Router {
    */
   public async close(): Promise<void> {
     return super.close();
+  }
+
+  /**
+   * Create composable Node request and upgrade handlers without opening a
+   * separate port. The host server remains responsible for listening/closing.
+   */
+  public async createHandlers(): Promise<NodeRequestHandlers> {
+    return this.adapter.createHandlers(this);
   }
 }

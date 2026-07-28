@@ -23,12 +23,15 @@ export class ClientConnection extends ConnectionBase {
   private isFullyConnected = false;
   private isClosing = false;
   private isReplacingTransport = false;
+  private isReconnecting = false;
   private subscribedRoutes: Record<string, (broadcast: BroadcastEvent) => void> = {};
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectOptions: ReconnectOptions | undefined;
   private reconnectAttempts = 0;
   private url?: string;
   private defaultRequestHeaders: Record<string, string> = {};
+  private requestTimeoutMs?: number;
+  private connectionChangeListeners = new Set<(connected: boolean) => void>();
   
   /**
    * Event called when client is connected
@@ -55,6 +58,16 @@ export class ClientConnection extends ConnectionBase {
       // Generate a secret for this connection
       const secret = newConnectionSecret();
       this.setHeader('secret', secret);
+    }
+    this.applyConnectionSecret(transport);
+
+    this.defaultRequestHeaders = { ...(options?.headers || {}) };
+    this.requestTimeoutMs = options?.timeout;
+    if (
+      this.requestTimeoutMs !== undefined
+      && (!Number.isFinite(this.requestTimeoutMs) || this.requestTimeoutMs <= 0)
+    ) {
+      throw new Error('Connection timeout must be a positive number');
     }
     
     this.onClientConnect = () => {};
@@ -84,10 +97,14 @@ export class ClientConnection extends ConnectionBase {
   }
 
   public close(): void {
+    const wasConnected = this.isFullyConnected;
     this.isClosing = true;
     this.isFullyConnected = false;
     this.clearReconnectTimer();
     super.close();
+    if (wasConnected) {
+      this.emitConnectionChange(false);
+    }
   }
 
   /**
@@ -116,6 +133,7 @@ export class ClientConnection extends ConnectionBase {
     
     const transport = createTransport(type, connectionUrl);
     this.url = connectionUrl;
+    this.applyConnectionSecret(transport);
     
     // Set the new transport
     await this.replaceTransport(transport);
@@ -149,8 +167,13 @@ export class ClientConnection extends ConnectionBase {
    * @returns The transport type
    */
   public getTransportType(): 'websocket' | 'http' | 'auto' {
-    const type = (this.transport as any).getConnectionInfo().type;
-    if (type === 'websocket' || type === 'http' || type === 'auto') {
+    const clientTransport = this.transport as ClientTransport;
+    const mode = clientTransport.getConnectionMode?.();
+    if (mode) {
+      return mode;
+    }
+    const type = clientTransport.getConnectionInfo().type;
+    if (type === 'websocket' || type === 'http') {
       return type;
     }
     
@@ -177,7 +200,7 @@ export class ClientConnection extends ConnectionBase {
     this.validateRoute(route);
     
     // Check rate limiting
-    if (this.messagesSentInASecond > ConnectionBase.SEND_LIMIT_PER_SEC) {
+    if (this.messagesSentInASecond >= ConnectionBase.SEND_LIMIT_PER_SEC) {
       callback?.({
         error: `Rate limit of ${ConnectionBase.SEND_LIMIT_PER_SEC} messages per second exceeded`,
         data: null as any
@@ -196,12 +219,8 @@ export class ClientConnection extends ConnectionBase {
     };
     
     // Send message and register callback
-    const msgId = this.postAndExpectResponse(msg);
     this.messagesSentInASecond++;
-
-    if (callback) {
-      this.callbacks.set(msgId, callback);
-    }
+    this.postAndExpectResponse(msg, callback, this.requestTimeoutMs);
   }
 
   /**
@@ -241,43 +260,41 @@ export class ClientConnection extends ConnectionBase {
     return this.connSubscribe(route, callback);
   }
 
-  private connSubscribe<T = any>(
+  private async connSubscribe<T = any>(
     route: string,
     callback: (broadcast: BroadcastEvent<T>) => void,
   ): Promise<void> {
-    return new Promise<void>(async (resolve, reject) => {
-      // Check if already subscribed
-      if (this.subscribedRoutes[route]) {
-        const errorMsg = `Route "${route}" already has a subscription`;
-        console.error(errorMsg);
-        reject(new Error(errorMsg));
-        return;
-      }
+    this.validateRoute(route);
+    if (typeof callback !== 'function') {
+      throw new TypeError('Subscription callback must be a function');
+    }
+    if (this.subscribedRoutes[route]) {
+      throw new Error(`Route "${route}" already has a subscription`);
+    }
 
-      // Register callback
-      this.subscribedRoutes[route] = callback as (broadcast: BroadcastEvent) => void;
+    const registeredCallback = callback as (broadcast: BroadcastEvent) => void;
+    this.subscribedRoutes[route] = registeredCallback;
 
-      try {
-        await this.waitForConnection();
-      } catch (e) {
-        console.error(`ClientConnection: Timeout waiting for connection to subscribe to ${route}`);
-        reject(new Error(`Connection timeout for subscription to ${route}`));
-        return;
-      }
-
-      // Send subscription message
-      this.post(new_MsgSubscribeToRoute(route), (response) => {
-        if (response.error) {
-          const errorMsg = `Failed to subscribe to route "${route}": ${response.error}`;
-          console.error(errorMsg);
-          // Remove the subscription if the server rejects it
-          delete this.subscribedRoutes[route];
-          reject(new Error(errorMsg));
-        } else {
-          resolve();
-        }
+    try {
+      await this.waitForConnection(this.requestTimeoutMs ?? 5000);
+      await new Promise<void>((resolve, reject) => {
+        this.post(new_MsgSubscribeToRoute(route), (response) => {
+          if (response.error) {
+            reject(new Error(`Failed to subscribe to route "${route}": ${response.error}`));
+          } else {
+            resolve();
+          }
+        }, this.requestTimeoutMs);
       });
-    });
+    } catch (error) {
+      if (this.subscribedRoutes[route] === registeredCallback) {
+        delete this.subscribedRoutes[route];
+      }
+      if (error instanceof Error && error.message === 'Connection timeout') {
+        throw new Error(`Connection timeout for subscription to ${route}`);
+      }
+      throw error;
+    }
   }
 
   private waitForConnection(timeoutMs = 5000): Promise<void> {
@@ -313,13 +330,14 @@ export class ClientConnection extends ConnectionBase {
    * @param route - The route to unsubscribe from
    */
   public off(route: string): void {
+    this.validateRoute(route);
     // Send unsubscription message
     this.post(new_MsgUnsubscribeFromRoute(route), (response) => {
       if (response.error) {
         console.error(`Failed to unsubscribe from route "${route}": ${response.error}`);
         return;
       }
-    });
+    }, this.requestTimeoutMs);
 
     // Remove route from subscribed routes
     delete this.subscribedRoutes[route];
@@ -353,6 +371,9 @@ export class ClientConnection extends ConnectionBase {
       this.clearReconnectTimer();
       this.reconnectAttempts = 0;
       this.onClientConnect();
+      if (!this.isReconnecting) {
+        this.emitConnectionChange(true);
+      }
     };
 
     const originalOnClose = this.onClose;
@@ -363,6 +384,7 @@ export class ClientConnection extends ConnectionBase {
       }
 
       this.isFullyConnected = false;
+      this.emitConnectionChange(false);
       this.scheduleReconnect();
     };
   }
@@ -376,7 +398,7 @@ export class ClientConnection extends ConnectionBase {
       const sub = this.subscribedRoutes[routeMsg.route];
       
       if (sub) {
-        const action = routeMsg.verb as "POST" | "DELETE";
+        const action = routeMsg.verb as "POST" | "DELETE" | "UPDATE";
         sub({ data: routeMsg.data, action: action });
       }
       
@@ -402,7 +424,8 @@ export class ClientConnection extends ConnectionBase {
     }
 
     console.error("Connection closed, re-connecting...");
-    this.reconnectTimer = setTimeout(() => this.reconnect(), this.reconnectOptions.initialDelay);
+    const delay = this.reconnectOptions.initialDelay ?? 500;
+    this.reconnectTimer = setTimeout(() => void this.reconnect(), delay);
   }
 
   /**
@@ -414,15 +437,20 @@ export class ClientConnection extends ConnectionBase {
     }
 
     try {
+      this.isReconnecting = true;
       // Create new transport with same URL
       const transportType = this.getTransportType();
       const transport = createTransport(transportType, this.url);
+      this.applyConnectionSecret(transport);
 
       await this.replaceTransport(transport);
       
       // After reconnection, resubscribe to routes
-      this.resubscribeToRoutes();
+      await this.resubscribeToRoutes();
+      this.isReconnecting = false;
+      this.emitConnectionChange(true);
     } catch (error) {
+      this.isReconnecting = false;
       console.error("Reconnection failed:", error);
       
       this.reconnectAttempts++;
@@ -443,25 +471,48 @@ export class ClientConnection extends ConnectionBase {
         maxDelay
       );
       
-      this.reconnectTimer = setTimeout(() => this.reconnect(), nextDelay);
+      this.reconnectTimer = setTimeout(() => void this.reconnect(), nextDelay);
     }
   }
 
   /**
    * Resubscribe to all routes
    */
-  private resubscribeToRoutes(): void {
-    for (const route in this.subscribedRoutes) {
-      this.post(new_MsgSubscribeToRoute(route), (response) => {
-        if (response.error) {
-          console.error(`Failed to resubscribe to route "${route}"`, response.error);
-        }
+  private async resubscribeToRoutes(): Promise<void> {
+    await Promise.all(Object.keys(this.subscribedRoutes).map((route) => {
+      return new Promise<void>((resolve) => {
+        this.post(new_MsgSubscribeToRoute(route), (response) => {
+          if (response.error) {
+            console.error(`Failed to resubscribe to route "${route}"`, response.error);
+          }
+          resolve();
+        }, this.requestTimeoutMs ?? 5000);
       });
-    }
+    }));
   }
 
   public setDefaultHeaders(headers: Record<string, string>): void {
     this.defaultRequestHeaders = { ...headers };
+  }
+
+  public onConnectionChange(callback: (connected: boolean) => void): () => void {
+    this.connectionChangeListeners.add(callback);
+    return () => {
+      this.connectionChangeListeners.delete(callback);
+    };
+  }
+
+  public setAuthToken(token: string): void {
+    this.defaultRequestHeaders = {
+      ...this.defaultRequestHeaders,
+      Authorization: `Bearer ${token}`,
+    };
+  }
+
+  public clearAuthToken(): void {
+    const { Authorization: _authorization, authorization: _lowerAuthorization, ...headers } =
+      this.defaultRequestHeaders;
+    this.defaultRequestHeaders = headers;
   }
 
   private async replaceTransport(transport: ClientTransport): Promise<void> {
@@ -481,5 +532,23 @@ export class ClientConnection extends ConnectionBase {
 
     clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
+  }
+
+  private applyConnectionSecret(transport: ClientTransport): void {
+    const secret = this.getSecret();
+    const transportWithSecret = transport as ClientTransport & {
+      setConnectionSecret?: (secret: string) => void;
+    };
+    transportWithSecret.setConnectionSecret?.(secret);
+  }
+
+  private emitConnectionChange(connected: boolean): void {
+    for (const listener of this.connectionChangeListeners) {
+      try {
+        listener(connected);
+      } catch (error) {
+        console.error('Error in connection change listener', error);
+      }
+    }
   }
 }

@@ -28,6 +28,11 @@ export type {
   OutRouteLayer,
   RequestContext
 } from './types';
+export type {
+  ConnectionIdentity,
+  SubscriptionAuthorizer,
+  SubscriptionAuthorizationResult,
+} from './types';
 
 // Export transports
 export { WebSocketTransport } from './transports/WebSocketTransport';

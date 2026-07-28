@@ -59,6 +59,13 @@ export class Client {
   }
 
   /**
+   * Observe connection changes. Returns a function that removes the listener.
+   */
+  public onConnectionChange(callback: (connected: boolean) => void): () => void {
+    return this.conn.onConnectionChange(callback);
+  }
+
+  /**
    * Establish the underlying transport connection.
    */
   public async connect(): Promise<void> {
@@ -127,14 +134,14 @@ export class Client {
    * Set the Authorization Bearer token to be sent on all requests
    */
   public setAuthToken(token: string): void {
-    this.conn.setDefaultHeaders({ Authorization: `Bearer ${token}` });
+    this.conn.setAuthToken(token);
   }
 
   /**
    * Clear any default Authorization token
    */
   public clearAuthToken(): void {
-    this.conn.setDefaultHeaders({});
+    this.conn.clearAuthToken();
   }
 
   /**

@@ -59,6 +59,9 @@ await client.post('/messages', { text: 'hello' });
 - `router.onPost(route, handler)`
 - `router.onDelete(route, handler)`
 - `router.broadcast(route, event, exceptConn?)`
+- `router.onAuthorizeSubscription(route, authorize)`
+- `router.onValidateBroadcast(route, validate)`
+- `router.createHandlers()` for an existing Node/SvelteKit server
 - `router.start()` or `router.listen()`
 - `router.close()`
 
@@ -67,3 +70,8 @@ await client.post('/messages', { text: 'hello' });
 - `neorest/node` is the Node.js server entrypoint.
 - Registered routes are also exposed over plain HTTP unless `disableHttpRoutes` is set.
 - Transport endpoints live under `/.neorest`.
+- `authenticateConnection` receives standards-compatible request `Headers`,
+  suitable for Better Auth cookie-session lookup, and can return an immutable
+  `{ id, ...context }` identity.
+- CORS, body size, held long-poll timeout, pending handshakes, HTTP request
+  rate, protocol message rate, and logical connection count are configurable.

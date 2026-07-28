@@ -8,9 +8,10 @@ export class HttpTransport extends HttpTransportBase {
   /**
    * Constructor
    * @param clientId - The client ID
+   * @param timeoutDuration - Inactivity timeout in milliseconds
    */
-  constructor(clientId: string) {
-    super(clientId);
+  constructor(clientId: string, timeoutDuration?: number) {
+    super(clientId, timeoutDuration);
   }
   
   // Node.js-specific methods can be added here as needed

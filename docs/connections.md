@@ -15,13 +15,22 @@ The concrete network transport can change while the logical connection stays the
 
 ## Identity
 
-Each logical connection is identified by a high-entropy `secret`.
+Each logical connection has two distinct identifiers:
 
-- On the client, `ClientConnection` creates a secret unless one is already present in the URL.
+- A high-entropy reconnect `secret` identifies the Neorest session.
+- An optional immutable application identity is returned by the server's
+  `authenticateConnection` hook.
+
+On the client, `ClientConnection` creates a secret unless one is already present in the URL.
 - On the server, `Router` stores active connections by that secret.
-- When a new transport arrives with an existing secret, the router reuses the same `ServerConnection` object instead of creating a new logical connection.
+- When a new transport arrives with an existing secret after the prior
+  transport disconnects, the router reuses the same `ServerConnection`.
+- A secret alone cannot replace a transport that is still active.
+- When authentication is enabled, a reconnect cannot change the identity bound
+  to the existing session.
 
-That is why reconnects can preserve subscriptions and connection-scoped state.
+The reconnect secret is not a user credential. Route and subscription
+authorization should use `connection.getIdentity()`.
 
 ## Transports
 
@@ -41,7 +50,8 @@ The typical lifecycle is:
 2. The server creates or looks up the logical connection for that transport.
 3. Route requests and subscription messages flow through that connection.
 4. If the transport drops unexpectedly, the client may reconnect with the same secret.
-5. The server swaps the transport on the existing logical connection.
+5. The server swaps the disconnected transport on the existing logical
+   connection.
 
 This is why Neorest treats transport replacement differently from a final close.
 
@@ -60,11 +70,14 @@ When reconnect succeeds, the client keeps using the same logical session and res
 
 HTTP long-polling has an extra transport-local `clientId` used only for the polling channel:
 
-- `GET /.neorest` returns `{ clientId }`
+- `GET /.neorest` returns `{ clientId, upgradeToken }`
 - `POST /.neorest?clientId=...` sends a protocol message
-- `GET /.neorest?poll=true&clientId=...` polls queued messages
+- `GET /.neorest?poll=true&clientId=...` holds until a queued message arrives
+  or the configured long-poll timeout expires
 
 `clientId` identifies the HTTP polling transport. The connection `secret` identifies the logical Neorest session.
+The short-lived `upgradeToken` authorizes the automatic replacement of that
+active HTTP transport with WebSocket; it is not an application auth token.
 
 ## What is connection-scoped
 
@@ -72,6 +85,7 @@ These properties belong to the logical connection, not to one specific socket:
 
 - subscriptions
 - connection secret
+- immutable authenticated application identity
 - server-side header/state attached to the connection
 - pending server-side route listeners tied to that connection
 

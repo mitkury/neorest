@@ -29,7 +29,9 @@ export class WebSocketTransport implements ClientTransport {
    */
   async connect(): Promise<void> {
     // Add auth data to URL if provided
-    let connectionUrl = this.connectionInfo.url;
+    const transportUrl = new URL(this.connectionInfo.url);
+    transportUrl.pathname = '/.neorest';
+    let connectionUrl = transportUrl.toString();
     if (Object.keys(this.authData).length > 0) {
       const urlObj = new URL(connectionUrl);
       for (const [key, value] of Object.entries(this.authData)) {
@@ -191,6 +193,10 @@ export class WebSocketTransport implements ClientTransport {
    */
   getConnectionInfo(): ConnectionInfo {
     return this.connectionInfo;
+  }
+
+  getConnectionMode(): 'websocket' {
+    return 'websocket';
   }
   
   /**

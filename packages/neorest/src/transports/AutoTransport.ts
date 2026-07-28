@@ -16,6 +16,11 @@ export class AutoTransport implements ClientTransport {
   private authData: Record<string, string> = {};
   private connectionInfo: ConnectionInfo;
   private connectionSecret: string | null = null;
+  private upgradeTimer: ReturnType<typeof setTimeout> | null = null;
+  private fallbackPromise: Promise<void> | null = null;
+  private isClosing = false;
+  private isUpgrading = false;
+  private messagesQueuedDuringUpgrade: MsgWrapper[] = [];
 
   constructor(private baseUrl: string) {
     this.http = new HttpTransport(this.ensureHttpUrl(baseUrl));
@@ -28,6 +33,7 @@ export class AutoTransport implements ClientTransport {
   }
 
   async connect(): Promise<void> {
+    this.isClosing = false;
     // 1) Connect HTTP first
     await this.http.connect();
     this.connectionInfo.status = 'connected';
@@ -48,6 +54,11 @@ export class AutoTransport implements ClientTransport {
   }
 
   disconnect(): void {
+    this.isClosing = true;
+    if (this.upgradeTimer) {
+      clearTimeout(this.upgradeTimer);
+      this.upgradeTimer = null;
+    }
     try { 
       this.ws?.disconnect(); 
     } catch (error) {
@@ -62,6 +73,26 @@ export class AutoTransport implements ClientTransport {
   }
 
   send(message: MsgWrapper): void {
+    if (this.isUpgrading || this.fallbackPromise) {
+      this.messagesQueuedDuringUpgrade.push(message);
+      return;
+    }
+
+    if (
+      !this.isClosing
+      && this.ws
+      && !this.ws.isConnected()
+      && !this.http.isConnected()
+    ) {
+      this.messagesQueuedDuringUpgrade.push(message);
+      this.ws = null;
+      this.connectionInfo.type = 'http';
+      void this.restoreHttpFallback().catch((error) => {
+        console.error('HTTP fallback failed:', error);
+      });
+      return;
+    }
+
     // Prefer WS if connected; otherwise HTTP
     if (this.ws && this.ws.isConnected()) {
       try {
@@ -99,7 +130,14 @@ export class AutoTransport implements ClientTransport {
   }
 
   isConnected(): boolean {
-    return (this.ws?.isConnected?.() ?? false) || this.http.isConnected();
+    return (
+      (this.ws?.isConnected?.() ?? false)
+      || this.http.isConnected()
+      || (
+        !this.isClosing
+        && (this.isUpgrading || this.fallbackPromise !== null || this.ws !== null)
+      )
+    );
   }
 
   setAuthentication(authData: Record<string, string>): void {
@@ -110,10 +148,7 @@ export class AutoTransport implements ClientTransport {
 
   setConnectionSecret(secret: string): void {
     this.connectionSecret = secret;
-    // Also set it on the HTTP transport if it has the method
-    if ((this.http as any).setConnectionSecret) {
-      (this.http as any).setConnectionSecret(secret);
-    }
+    this.http.setConnectionSecret(secret);
   }
 
   getConnectionInfo(): ConnectionInfo {
@@ -125,8 +160,24 @@ export class AutoTransport implements ClientTransport {
     };
   }
 
+  getConnectionMode(): 'auto' {
+    return 'auto';
+  }
+
   // Internals
   private async tryUpgradeToWebSocket(): Promise<void> {
+    if (this.isClosing || this.ws?.isConnected() || this.isUpgrading) {
+      return;
+    }
+    if (this.http.hasPendingSends()) {
+      this.upgradeTimer = setTimeout(() => {
+        this.upgradeTimer = null;
+        void this.tryUpgradeToWebSocket();
+      }, 25);
+      return;
+    }
+
+    this.isUpgrading = true;
     try {
       let wsUrl = this.ensureWsUrl(this.baseUrl);
       
@@ -134,6 +185,11 @@ export class AutoTransport implements ClientTransport {
       if (this.connectionSecret) {
         const url = new URL(wsUrl);
         url.searchParams.set('secret', this.connectionSecret);
+        const upgradeInfo = this.http.getUpgradeInfo();
+        if (upgradeInfo) {
+          url.searchParams.set('clientId', upgradeInfo.clientId);
+          url.searchParams.set('upgradeToken', upgradeInfo.token);
+        }
         wsUrl = url.toString();
       }
       
@@ -147,12 +203,25 @@ export class AutoTransport implements ClientTransport {
       if (this.closeCallback) ws.onClose(() => this.handleUnderlyingClose('ws'));
 
       await ws.connect();
+      if (this.isClosing) {
+        ws.disconnect();
+        this.isUpgrading = false;
+        return;
+      }
 
       // Mark as upgraded
       this.ws = ws;
       this.connectionInfo.type = 'websocket';
+      // Keep one active server transport per logical connection. If WebSocket
+      // later fails, restore HTTP with a fresh transport/client id.
+      this.http.disconnect();
+      this.isUpgrading = false;
+      this.flushUpgradeQueue(ws);
+      this.openCallback?.();
     } catch (e) {
       // WS not available or failed; continue on HTTP silently
+      this.isUpgrading = false;
+      this.flushUpgradeQueue(this.http);
     }
   }
 
@@ -161,16 +230,18 @@ export class AutoTransport implements ClientTransport {
     const maxWaitMs = 2000;
     const tick = () => {
       if (this.connectionSecret) {
+        this.upgradeTimer = null;
         void this.tryUpgradeToWebSocket();
         return;
       }
       if (Date.now() - start > maxWaitMs) {
+        this.upgradeTimer = null;
         // Give up on waiting; stay on HTTP (will retry later on reconnects if any)
         return;
       }
-      setTimeout(tick, 50);
+      this.upgradeTimer = setTimeout(tick, 50);
     };
-    setTimeout(tick, 50);
+    this.upgradeTimer = setTimeout(tick, 50);
   }
 
   private handleUnderlyingOpen(kind: 'http' | 'ws'): void {
@@ -183,6 +254,22 @@ export class AutoTransport implements ClientTransport {
   }
 
   private handleUnderlyingClose(kind: 'http' | 'ws'): void {
+    if (this.isClosing) {
+      return;
+    }
+
+    if (kind === 'ws') {
+      if (!this.ws) {
+        return;
+      }
+      this.ws = null;
+      this.connectionInfo.type = 'http';
+      void this.restoreHttpFallback().catch((error) => {
+        console.error('HTTP fallback failed:', error);
+      });
+      return;
+    }
+
     // Only emit close if both transports are down
     const wsConnected = this.ws?.isConnected() ?? false;
     const httpConnected = this.http.isConnected();
@@ -190,6 +277,50 @@ export class AutoTransport implements ClientTransport {
       if (this.closeCallback) this.closeCallback();
       this.connectionInfo.status = 'disconnected';
     }
+  }
+
+  private restoreHttpFallback(): Promise<void> {
+    if (this.fallbackPromise) {
+      return this.fallbackPromise;
+    }
+
+    this.fallbackPromise = (async () => {
+      // Give the server's WebSocket close event a brief head start so the
+      // reconnect is not mistaken for an active-session takeover.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      if (this.isClosing) {
+        return;
+      }
+      const http = new HttpTransport(this.ensureHttpUrl(this.baseUrl));
+      if (this.connectionSecret) {
+        http.setConnectionSecret(this.connectionSecret);
+      }
+      if (Object.keys(this.authData).length > 0) {
+        http.setAuthentication(this.authData);
+      }
+      if (this.messageCallback) {
+        http.onMessage(this.messageCallback);
+      }
+      http.onOpen(() => this.handleUnderlyingOpen('http'));
+      http.onClose(() => this.handleUnderlyingClose('http'));
+      this.http = http;
+
+      try {
+        await http.connect();
+        this.connectionInfo.status = 'connected';
+        this.connectionInfo.type = 'http';
+        this.flushUpgradeQueue(http);
+        this.openCallback?.();
+      } catch (error) {
+        this.connectionInfo.status = 'disconnected';
+        this.closeCallback?.();
+        throw error;
+      }
+    })().finally(() => {
+      this.fallbackPromise = null;
+    });
+
+    return this.fallbackPromise;
   }
 
   private ensureHttpUrl(url: string): string {
@@ -204,5 +335,12 @@ export class AutoTransport implements ClientTransport {
     if (url.startsWith('https://')) return 'wss://' + url.slice('https://'.length);
     if (url.startsWith('http://')) return 'ws://' + url.slice('http://'.length);
     return 'ws://' + url; // best-effort
+  }
+
+  private flushUpgradeQueue(transport: ClientTransport): void {
+    const messages = this.messagesQueuedDuringUpgrade.splice(0);
+    for (const message of messages) {
+      transport.send(message);
+    }
   }
 }

@@ -22,7 +22,9 @@ Inside `packages/neorest/src`:
 
 - `ConnectionBase` owns message IDs, ack/resend bookkeeping, headers, rate limiting, and response callbacks.
 - `ClientConnection` extends it with reconnect logic, route validation, route subscriptions, and auth headers.
-- `ServerConnection` extends it with route handling and subscription management callbacks wired by `Router`.
+- `ServerConnection` extends it with route handling, immutable handshake
+  identity, inbound rate limiting, and subscription management callbacks wired
+  by `Router`.
 - `Router` stores inbound handlers and outbound subscription matchers, then delegates actual I/O to a server adapter.
 
 ### Protocol
@@ -40,15 +42,20 @@ User-facing request methods return `RouteResponse<T>`. Subscription callbacks re
 ### Client transports
 
 - `WebSocketTransport`: browser-style WebSocket client transport
-- `HttpTransport`: handshake + poll/send HTTP fallback under `/.neorest`
+- `HttpTransport`: handshake + held long-poll/send HTTP fallback under `/.neorest`
 - `AutoTransport`: connects over HTTP first, then upgrades to WebSocket when available and falls back to HTTP on WS send failure
 
 ### Node server side
 
 - `NodeRouter` is the public server entrypoint.
-- `NodeServerAdapter` creates the HTTP/HTTPS server, optional WebSocket upgrade handling, and the `/.neorest` transport endpoints.
+- `NodeServerAdapter` can create a standalone HTTP/HTTPS server or expose
+  composable request and WebSocket-upgrade handlers for an existing server.
 - Plain HTTP access to registered routes is enabled by default and can be disabled with `disableHttpRoutes`.
 - WebSocket support can be disabled explicitly with `disableWebSocket`.
+- Handshake authentication can bind cookie-backed application identity to a
+  connection before any protocol message or subscription is accepted.
+- CORS, payload limits, held-poll duration, HTTP request limits, connection
+  limits, and per-connection protocol message limits are configurable.
 
 ### Tested flows
 
@@ -61,6 +68,9 @@ The test suite currently covers:
 - plain HTTP routes
 - reconnect and subscription restoration
 - auth middleware and per-subscriber broadcast validation
+- handshake identity and subscription-registration authorization
+- existing-server handler composition
+- held long polling, configurable origins, and server-side limits
 - path conflict resolution and duplicate-subscription prevention
 
 ### Minimal usage

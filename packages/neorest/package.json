@@ -36,9 +36,9 @@
     "crypto": false
   },
   "scripts": {
-    "prebuild": "rimraf dist",
+    "prebuild": "rimraf dist tsconfig.tsbuildinfo",
     "build": "tsup && tsc -p tsconfig.json --emitDeclarationOnly --outDir dist",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist tsconfig.tsbuildinfo"
   },
   "author": "Dmitry Kury (https://dkury.com)",
   "license": "MIT",
@@ -46,7 +46,7 @@
     "dist"
   ],
   "dependencies": {
-    "ws": "^8.18.0"
+    "ws": "^8.21.1"
   },
   "devDependencies": {
     "typescript": "^5.0.0",

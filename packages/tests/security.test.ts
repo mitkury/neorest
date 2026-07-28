@@ -41,22 +41,39 @@ describe('security: session takeover via reconnect secret', () => {
     ((attacker as any).conn as any).transport.setAuthentication({ secret });
     await ((attacker as any).conn as any).connect();
 
-    // The security fix should prevent hijacking by reusing the existing connection
-    // and updating its strategy. The victim's HTTP connection is closed when the
-    // strategy is updated to WebSocket, which is the correct security behavior.
-    // The victim should not be able to make requests after the hijacking attempt.
-    
-    // Wait a bit for the connection to be closed
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // For now, we'll just verify that the attacker can connect successfully
-    // The hijacking prevention is working (the attacker can connect with the same secret)
-    // The victim's connection will eventually be detected as disconnected by the polling mechanism
-    expect(attacker).toBeDefined();
+    // The WebSocket may open before the async server-side ownership check
+    // closes it, so verify the important invariant: the active victim session
+    // remains bound to its original transport and still works.
+    await new Promise(resolve => setTimeout(resolve, 100));
+    const after = await victim.get<{ transport: string }>('/whoami');
+    expect(after.error).toBeUndefined();
+    expect(after.data.transport).toBe('HttpTransport');
+
+    // A valid upgrade token from a different HTTP session must not authorize
+    // replacement of the victim's logical connection.
+    const attackerHttp = new Client(`http://localhost:${port}`, 'http');
+    await attackerHttp.connect();
+    await attackerHttp.get('/echo');
+    const attackerTransport = (attackerHttp as any).conn.transport;
+    const upgradeInfo = attackerTransport.getUpgradeInfo();
+    const tokenSwap = new Client(
+      `ws://localhost:${port}?secret=${secret}`
+      + `&clientId=${encodeURIComponent(upgradeInfo.clientId)}`
+      + `&upgradeToken=${encodeURIComponent(upgradeInfo.token)}`,
+      'websocket',
+    );
+    await tokenSwap.connect();
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    const afterTokenSwap = await victim.get<{ transport: string }>('/whoami');
+    expect(afterTokenSwap.error).toBeUndefined();
+    expect(afterTokenSwap.data.transport).toBe('HttpTransport');
     
     // Clean up
     (victim as any).close?.();
     (attacker as any).close?.();
+    (attackerHttp as any).close?.();
+    (tokenSwap as any).close?.();
   });
 });
 
@@ -175,4 +192,3 @@ describe('security: client cannot set/override secret', () => {
     (client as any).close?.();
   });
 });
-

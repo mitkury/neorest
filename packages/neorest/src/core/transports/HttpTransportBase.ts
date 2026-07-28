@@ -13,14 +13,22 @@ export abstract class HttpTransportBase implements ServerTransport {
   protected messageCallback: ((message: MsgWrapper) => void) | null = null;
   protected closeCallback: (() => void) | null = null;
   protected timeoutId: number | null = null;
-  protected timeoutDuration = 30000; // 30 seconds timeout for inactive connections
+  protected timeoutDuration: number;
+  private pendingPoll: {
+    resolve: (messages: MsgWrapper[]) => void;
+    timer: ReturnType<typeof setTimeout>;
+    signal?: AbortSignal;
+    onAbort?: () => void;
+  } | null = null;
   
   /**
    * Constructor
    * @param clientId - The client ID
+   * @param timeoutDuration - Inactivity timeout in milliseconds
    */
-  constructor(clientId: string) {
+  constructor(clientId: string, timeoutDuration = 30_000) {
     this.clientId = clientId;
+    this.timeoutDuration = timeoutDuration;
     this.startInactivityTimer();
   }
 
@@ -62,8 +70,12 @@ export abstract class HttpTransportBase implements ServerTransport {
    * Disconnect this client
    */
   disconnect(): void {
+    if (!this.active) {
+      return;
+    }
     this.active = false;
     this.messageQueue = [];
+    this.finishPendingPoll([]);
     
     if (this.timeoutId) {
       clearTimeout(this.timeoutId);
@@ -82,6 +94,9 @@ export abstract class HttpTransportBase implements ServerTransport {
   send(message: MsgWrapper): void {
     if (this.active) {
       this.messageQueue.push({ ...message }); // Clone to avoid reference issues
+      if (this.pendingPoll) {
+        this.finishPendingPoll(this.takeQueuedMessages());
+      }
     }
   }
 
@@ -90,12 +105,46 @@ export abstract class HttpTransportBase implements ServerTransport {
    * @returns The queued messages
    */
   getQueuedMessages(): MsgWrapper[] {
+    if (!this.active) {
+      return [];
+    }
     this.lastPollTime = Date.now();
     this.startInactivityTimer();
     
-    const messages = [...this.messageQueue];
-    this.messageQueue = [];
-    return messages;
+    return this.takeQueuedMessages();
+  }
+
+  /**
+   * Hold a poll until messages are available, the request is aborted, or the
+   * timeout expires. Only one poll is retained per HTTP transport.
+   */
+  waitForMessages(timeoutMs: number, signal?: AbortSignal): Promise<MsgWrapper[]> {
+    if (!this.active || signal?.aborted) {
+      return Promise.resolve([]);
+    }
+    const queued = this.getQueuedMessages();
+    if (queued.length > 0) {
+      return Promise.resolve(queued);
+    }
+
+    // A replacement poll supersedes an older browser request for the same
+    // logical transport, preventing unbounded pending responses.
+    if (this.pendingPoll) {
+      this.finishPendingPoll([]);
+    }
+
+    this.lastPollTime = Date.now();
+    this.startInactivityTimer();
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.finishPendingPoll([]);
+      }, timeoutMs);
+      const onAbort = () => {
+        this.finishPendingPoll([]);
+      };
+      this.pendingPoll = { resolve, timer, signal, onAbort };
+      signal?.addEventListener('abort', onAbort, { once: true });
+    });
   }
 
   /**
@@ -103,6 +152,9 @@ export abstract class HttpTransportBase implements ServerTransport {
    * @param message - The message to process
    */
   processMessage(message: MsgWrapper): void {
+    if (!this.active) {
+      return;
+    }
     this.lastPollTime = Date.now();
     this.startInactivityTimer();
     
@@ -162,5 +214,24 @@ export abstract class HttpTransportBase implements ServerTransport {
     if (!filter || filter(this)) {
       this.send(message);
     }
+  }
+
+  private takeQueuedMessages(): MsgWrapper[] {
+    const messages = [...this.messageQueue];
+    this.messageQueue = [];
+    return messages;
+  }
+
+  private finishPendingPoll(messages: MsgWrapper[]): void {
+    const pending = this.pendingPoll;
+    if (!pending) {
+      return;
+    }
+    this.pendingPoll = null;
+    clearTimeout(pending.timer);
+    if (pending.signal && pending.onAbort) {
+      pending.signal.removeEventListener('abort', pending.onAbort);
+    }
+    pending.resolve(messages);
   }
 }

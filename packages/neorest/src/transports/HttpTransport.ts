@@ -1,4 +1,4 @@
-import { CommunicationTransport, MsgWrapper, ClientTransport, ConnectionInfo } from '../core';
+import { MsgWrapper, ClientTransport, ConnectionInfo } from '../core';
 
 /**
  * HTTP-based communication transport using long polling
@@ -8,13 +8,17 @@ export class HttpTransport implements ClientTransport {
   private messageCallback: ((message: MsgWrapper) => void) | null = null;
   private closeCallback: (() => void) | null = null;
   private openCallback: (() => void) | null = null;
-  private pollInterval: ReturnType<typeof setInterval> | null = null;
+  private pollTimer: ReturnType<typeof setTimeout> | null = null;
+  private pollController: AbortController | null = null;
   private connectionInfo: ConnectionInfo;
   private authData: Record<string, string> = {};
-  private pollDelay = 100; // 100 ms for faster responsiveness in tests
+  private pollDelay = 0;
   private pollFailures = 0;
   private maxPollFailures = 3;
   private clientId: string | null = null;
+  private connectionSecret: string | null = null;
+  private pendingSends = 0;
+  private upgradeToken: string | null = null;
 
   /**
    * Constructor
@@ -33,58 +37,60 @@ export class HttpTransport implements ClientTransport {
    * Connect to the server
    */
   async connect(): Promise<void> {
-    // Perform handshake to obtain a clientId from the server
+    if (this.connected) {
+      return;
+    }
+
+    this.connectionInfo.status = 'connecting';
     try {
-      const url = new URL(this.connectionInfo.url);
-      url.pathname = '/.neorest';
+      const url = this.createTransportUrl();
       const res = await fetch(url.toString(), {
         method: 'GET',
-        headers: { 'Accept': 'application/json' }
+        headers: this.createHeaders(),
+        credentials: 'same-origin',
       });
-
-      if (res.ok) {
-        // Server returns { clientId } when no clientId is provided
-        try {
-          const data = await res.json() as { clientId?: string };
-          if (data && data.clientId) {
-            this.clientId = data.clientId;
-          }
-        } catch {
-          // If response isn't JSON, fall back to generated id below
-        }
+      if (!res.ok) {
+        throw new Error(`HTTP transport handshake failed: ${res.status}`);
       }
-    } catch (e) {
-      // Handshake failed; proceed with a locally generated id to avoid blocking
-      console.error('HTTP transport handshake failed, generating local clientId:', e);
-    }
 
-    if (!this.clientId) {
-      this.clientId = Math.random().toString(36).slice(2);
+      const data = await res.json() as { clientId?: unknown; upgradeToken?: unknown };
+      if (typeof data?.clientId !== 'string' || !data.clientId) {
+        throw new Error('HTTP transport handshake returned an invalid clientId');
+      }
+      this.clientId = data.clientId;
+      this.upgradeToken = typeof data.upgradeToken === 'string' ? data.upgradeToken : null;
+      this.connectionInfo.id = this.clientId;
+    } catch (error) {
+      this.connectionInfo.status = 'disconnected';
+      throw error;
     }
-    this.connectionInfo.id = this.clientId;
 
     this.connected = true;
+    this.pollFailures = 0;
     this.connectionInfo.status = 'connected';
-    this.pollForMessages();
 
     if (this.openCallback) {
       this.openCallback();
     }
+    this.schedulePoll(0);
   }
 
   /**
    * Disconnect from the server
    */
   disconnect(): void {
+    const wasConnected = this.connected;
     this.connected = false;
     this.connectionInfo.status = 'disconnected';
     
-    if (this.pollInterval) {
-      clearInterval(this.pollInterval);
-      this.pollInterval = null;
+    if (this.pollTimer) {
+      clearTimeout(this.pollTimer);
+      this.pollTimer = null;
     }
-    
-    if (this.closeCallback) {
+    this.pollController?.abort();
+    this.pollController = null;
+
+    if (wasConnected && this.closeCallback) {
       this.closeCallback();
     }
   }
@@ -98,17 +104,14 @@ export class HttpTransport implements ClientTransport {
       throw new Error('HTTP connection is not established');
     }
 
+    this.pendingSends++;
     const doSend = async () => {
       try {
         // Add auth data to headers
-        const headers: HeadersInit = { 'Content-Type': 'application/json' };
-        for (const [key, value] of Object.entries(this.authData)) {
-          (headers as any)[key] = value;
-        }
+        const headers = this.createHeaders({ 'Content-Type': 'application/json' });
 
         // Include clientId in URL
-        const url = new URL(this.connectionInfo.url);
-        url.pathname = '/.neorest';
+        const url = this.createTransportUrl();
         if (this.clientId) {
           url.searchParams.set('clientId', this.clientId);
         }
@@ -117,6 +120,7 @@ export class HttpTransport implements ClientTransport {
           method: 'POST',
           headers,
           body: JSON.stringify(message),
+          credentials: 'same-origin',
         });
 
         if (!response.ok) {
@@ -139,7 +143,9 @@ export class HttpTransport implements ClientTransport {
         }
       } catch (error) {
         console.error('Error sending message:', error);
-        throw error;
+        this.disconnect();
+      } finally {
+        this.pendingSends--;
       }
     };
 
@@ -187,6 +193,24 @@ export class HttpTransport implements ClientTransport {
     this.authData = authData;
   }
 
+  setConnectionSecret(secret: string): void {
+    this.connectionSecret = secret;
+  }
+
+  hasPendingSends(): boolean {
+    return this.pendingSends > 0;
+  }
+
+  getUpgradeInfo(): { clientId: string; token: string } | null {
+    if (!this.clientId || !this.upgradeToken) {
+      return null;
+    }
+    return {
+      clientId: this.clientId,
+      token: this.upgradeToken,
+    };
+  }
+
   /**
    * Get information about the connection
    * @returns Connection information
@@ -195,64 +219,93 @@ export class HttpTransport implements ClientTransport {
     return this.connectionInfo;
   }
 
+  getConnectionMode(): 'http' {
+    return 'http';
+  }
+
   /**
    * Poll for messages from the server
    */
-  private pollForMessages(): void {
-    this.pollInterval = setInterval(async () => {
-      if (!this.connected) return;
+  private schedulePoll(delay = this.pollDelay): void {
+    if (!this.connected || this.pollTimer) {
+      return;
+    }
+    this.pollTimer = setTimeout(() => {
+      this.pollTimer = null;
+      void this.pollForMessages();
+    }, delay);
+  }
 
-      try {
-        // Build poll URL with clientId and auth
-        const pollUrl = new URL(this.connectionInfo.url);
-        pollUrl.pathname = '/.neorest';
-        pollUrl.searchParams.set('poll', 'true');
-        if (this.clientId) {
-          pollUrl.searchParams.set('clientId', this.clientId);
-        }
-        for (const [key, value] of Object.entries(this.authData)) {
-          pollUrl.searchParams.set(key, value);
-        }
+  private async pollForMessages(): Promise<void> {
+    if (!this.connected || !this.clientId) {
+      return;
+    }
 
-        const response = await fetch(pollUrl.toString(), {
-          headers: { 'Accept': 'application/json' }
-        });
+    this.pollController = new AbortController();
+    try {
+      const pollUrl = this.createTransportUrl();
+      pollUrl.searchParams.set('poll', 'true');
+      pollUrl.searchParams.set('clientId', this.clientId);
+      const response = await fetch(pollUrl.toString(), {
+        headers: this.createHeaders(),
+        signal: this.pollController.signal,
+        credentials: 'same-origin',
+      });
 
-        if (response.status === 204) {
-          // No content, keep polling
-          this.pollFailures = 0;
-          return;
-        }
-
+      if (response.status !== 204) {
         if (!response.ok) {
           throw new Error(`HTTP error: ${response.status}`);
         }
-
-        // Reset failure counter on success
-        this.pollFailures = 0;
-
         const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          const payload = await response.json();
-          if (this.messageCallback) {
-            if (Array.isArray(payload)) {
-              for (const msg of payload) {
-                this.messageCallback(msg as MsgWrapper);
-              }
-            } else {
-              this.messageCallback(payload as MsgWrapper);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error polling for messages:', error);
-        this.pollFailures++;
-
-        if (this.pollFailures >= this.maxPollFailures) {
-          console.error(`Max poll failures (${this.maxPollFailures}) reached, disconnecting`);
-          this.disconnect();
+        if (contentType?.includes('application/json')) {
+          this.dispatchPayload(await response.json());
         }
       }
-    }, this.pollDelay);
+      this.pollFailures = 0;
+    } catch (error) {
+      if (!this.connected || (error instanceof Error && error.name === 'AbortError')) {
+        return;
+      }
+      console.error('Error polling for messages:', error);
+      this.pollFailures++;
+      if (this.pollFailures >= this.maxPollFailures) {
+        console.error(`Max poll failures (${this.maxPollFailures}) reached, disconnecting`);
+        this.disconnect();
+        return;
+      }
+    } finally {
+      this.pollController = null;
+      this.schedulePoll();
+    }
+  }
+
+  private createTransportUrl(): URL {
+    const url = new URL(this.connectionInfo.url);
+    url.pathname = '/.neorest';
+    if (this.connectionSecret) {
+      url.searchParams.set('secret', this.connectionSecret);
+    }
+    return url;
+  }
+
+  private createHeaders(additional: Record<string, string> = {}): Record<string, string> {
+    return {
+      Accept: 'application/json',
+      ...this.authData,
+      ...additional,
+    };
+  }
+
+  private dispatchPayload(payload: unknown): void {
+    if (!payload || !this.messageCallback) {
+      return;
+    }
+    if (Array.isArray(payload)) {
+      for (const message of payload) {
+        this.messageCallback(message as MsgWrapper);
+      }
+      return;
+    }
+    this.messageCallback(payload as MsgWrapper);
   }
 }

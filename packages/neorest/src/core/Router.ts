@@ -11,7 +11,10 @@ import type {
   OutRouteLayer,
   RequestContext,
   RouterOptions,
-  ServerAdapter
+  ServerAdapter,
+  ConnectionIdentity,
+  SubscriptionAuthorizer,
+  SubscriptionAuthorizationResult,
 } from './types';
 import type { CommunicationTransport } from './CommunicationTransport';
 
@@ -19,14 +22,21 @@ import type { CommunicationTransport } from './CommunicationTransport';
 export type { RouterOptions, ServerAdapter, RequestContext };
 import { newConnectionSecret } from './utils/connectionSecret';
 import { ServerConnection } from './ServerConnection';
-import { msg_ConnDataSet } from './types';
 import { 
   Key,
   match,
-  MatchFunction,
   MatchResult,
   pathToRegexp,
 } from './utils/pathToRegexp';
+
+type SubscriptionAuthorizationLayer = {
+  route: string;
+  regexp: RegExp;
+  match: ReturnType<typeof match>;
+  keys: string[];
+  specificity: number;
+  authorize: SubscriptionAuthorizer;
+};
 
 // Types are now imported from './types'
 
@@ -58,6 +68,8 @@ export class Router {
    * Routes that the router uses to send messages to the clients
    */
   private outRoutes: OutRouteLayer[] = [];
+
+  private subscriptionAuthorizationRoutes: SubscriptionAuthorizationLayer[] = [];
   
   /**
    * Router options
@@ -77,8 +89,11 @@ export class Router {
     this.options = {
       logLevel: 'info',
       validateRoutes: true,
+      maxMessagesPerSecond: 100,
+      maxConnections: 10_000,
       ...options
     };
+    this.validateLimits();
 
     // Default: allow broadcasts to any route unless overridden
     this.setOutRoute('/:any(.*)', () => true);
@@ -123,6 +138,14 @@ export class Router {
     if (this.serverAdapter) {
       await this.serverAdapter.stop();
     }
+    for (const connection of Object.values(this.connections)) {
+      connection.close();
+    }
+    for (const timer of Object.values(this.pendingRemovals)) {
+      clearTimeout(timer);
+    }
+    this.pendingRemovals = {};
+    this.connections = {};
   }
 
   /**
@@ -181,6 +204,37 @@ export class Router {
     ) => boolean | Promise<boolean>,
   ): this {
     this.setOutRoute(route, validate);
+    return this;
+  }
+
+  /**
+   * Authorize subscription registration for a route pattern.
+   * The most specific matching authorizer is used.
+   */
+  onAuthorizeSubscription(
+    route: string,
+    authorize: SubscriptionAuthorizer,
+  ): this {
+    const keys: Key[] = [];
+    const regexp = pathToRegexp(route, keys);
+    const keyNames = keys.map((key) => String(key.name));
+    const existing = this.subscriptionAuthorizationRoutes.find(
+      (layer) => String(layer.regexp) === String(regexp),
+    );
+    const layer: SubscriptionAuthorizationLayer = {
+      route,
+      regexp,
+      match: match(regexp, { decode: decodeURIComponent }),
+      keys: keyNames,
+      specificity: this.computeSpecificityScore(route, keyNames),
+      authorize,
+    };
+    if (existing) {
+      existing.authorize = authorize;
+    } else {
+      this.subscriptionAuthorizationRoutes.push(layer);
+      this.subscriptionAuthorizationRoutes.sort((a, b) => b.specificity - a.specificity);
+    }
     return this;
   }
 
@@ -253,7 +307,9 @@ export class Router {
    */
   public async handleNewConnection(
     transport: CommunicationTransport,
-    reconnectSecret: ConnectionSecret | null = null
+    reconnectSecret: ConnectionSecret | null = null,
+    allowActiveReplacement = false,
+    identity: ConnectionIdentity | null = null,
   ): Promise<ServerConnection> {
     if (reconnectSecret && (this.connections[reconnectSecret] || this.pendingRemovals[reconnectSecret])) {
       // Handle duplicate connection by reusing existing connection instance
@@ -267,18 +323,28 @@ export class Router {
       }
 
       if (existingConn) {
+        this.assertSameIdentity(existingConn, identity);
+        if (existingConn.getTransport().isConnected() && !allowActiveReplacement) {
+          throw new Error('A connection with this reconnect secret is already active');
+        }
         // Update the communication transport on the same connection object
         await existingConn.setTransport(transport);
         return existingConn;
       }
 
       // If we don't have existingConn yet (e.g., was pending removal), create anew
-      const conn = this.createAndSetupConnection(transport, reconnectSecret);
+      const conn = this.createAndSetupConnection(transport, reconnectSecret, identity);
       return conn;
     } else {
+      if (
+        this.options.maxConnections !== false
+        && Object.keys(this.connections).length >= this.options.maxConnections
+      ) {
+        throw new Error('Server connection limit reached');
+      }
       // Create a new connection with a fresh secret
       const secret = reconnectSecret || newConnectionSecret();
-      const conn = this.createAndSetupConnection(transport, secret);
+      const conn = this.createAndSetupConnection(transport, secret, identity);
       
       return conn;
     }
@@ -290,8 +356,17 @@ export class Router {
    * @param secret - The connection secret
    * @returns The configured connection
    */
-  private createAndSetupConnection(transport: CommunicationTransport, secret: ConnectionSecret): ServerConnection {
-    const conn = new ServerConnection(transport);
+  private createAndSetupConnection(
+    transport: CommunicationTransport,
+    secret: ConnectionSecret,
+    identity: ConnectionIdentity | null,
+  ): ServerConnection {
+    const conn = new ServerConnection(
+      transport,
+      undefined,
+      identity,
+      this.options.maxMessagesPerSecond ?? 100,
+    );
     
     // Set the secret and register the connection
     conn.setHeader('secret', secret);
@@ -304,8 +379,8 @@ export class Router {
       return await this.handleRouteMessage(conn.getSecret(), msgId, msg);
     };
 
-    conn.onSubscribeToRoute = (route) => {
-      this.subscribeConnectionToRoute(route, conn.getSecret());
+    conn.onSubscribeToRoute = async (route) => {
+      return this.subscribeConnectionToRoute(route, conn.getSecret());
     };
 
     conn.onUnsubscribeFromRoute = (route) => {
@@ -366,7 +441,16 @@ export class Router {
           };
         }
 
-        await verbAndHandler.handler(ctx);
+        try {
+          await verbAndHandler.handler(ctx);
+        } catch (error) {
+          console.error(`Error handling ${msg.verb} ${msg.route}`, error);
+          return {
+            error: 'Internal server error',
+            data: null,
+            status: 500,
+          };
+        }
 
         if (ctx.error) {
           return {
@@ -508,6 +592,8 @@ export class Router {
       this.outRoutes.push(targetRoute);
       // Keep routes ordered by specificity (most specific first)
       this.outRoutes.sort((a, b) => b.specificity - a.specificity);
+    } else {
+      targetRoute.validate = validate;
     }
 
     return targetRoute.id;
@@ -518,9 +604,37 @@ export class Router {
    * @param path - The route to subscribe to
    * @param connSecret - The connection secret
    */
-  private subscribeConnectionToRoute(path: string, connSecret: ConnectionSecret): void {
+  private async subscribeConnectionToRoute(
+    path: string,
+    connSecret: ConnectionSecret,
+  ): Promise<SubscriptionAuthorizationResult> {
     if (!this.connections[connSecret]) {
       throw new Error(`Connection with id ${connSecret} does not exist`);
+    }
+
+    const conn = this.connections[connSecret];
+    for (const layer of this.subscriptionAuthorizationRoutes) {
+      const authorizationMatch = layer.match(path);
+      if (!authorizationMatch) continue;
+      const params: Record<string, string> = {};
+      for (let i = 0; i < layer.keys.length; i++) {
+        params[layer.keys[i]] = authorizationMatch.params[i];
+      }
+      const result = await layer.authorize(
+        conn,
+        params,
+      );
+      const normalized = typeof result === 'boolean'
+        ? { allowed: result }
+        : result;
+      if (!normalized.allowed) {
+        return {
+          allowed: false,
+          status: normalized.status || 403,
+          error: normalized.error || 'Subscription forbidden',
+        };
+      }
+      break;
     }
 
     // Subscribe to all matching out routes (internalBroadcast will ensure only
@@ -546,6 +660,7 @@ export class Router {
         });
       }
     }
+    return { allowed: true };
   }
 
   /**
@@ -558,12 +673,18 @@ export class Router {
       throw new Error(`Connection with id ${connSecret} does not exist`);
     }
 
-    // Remove from any matching route (in case of prior multiple subscriptions)
+    // Remove only the matching concrete subscription. A connection may listen
+    // to multiple parameter values on the same route layer.
     for (const route of this.outRoutes) {
-      const match = route.match(path);
-      if (match) {
-        route.listeners = route.listeners.filter((l) => l.conn !== connSecret);
-      }
+      const matchResult = route.match(path);
+      if (!matchResult) continue;
+      const params = Object.values(matchResult.params);
+      route.listeners = route.listeners.filter((listener) => {
+        if (listener.conn !== connSecret || listener.params.length !== params.length) {
+          return true;
+        }
+        return listener.params.some((value, index) => value !== params[index]);
+      });
     }
   }
 
@@ -594,6 +715,10 @@ export class Router {
     if (!best) return;
 
     const paramsArr = Object.values(best.match.params);
+    const params: Record<string, string> = {};
+    for (let i = 0; i < best.layer.keys.length; i++) {
+      params[best.layer.keys[i]] = best.match.params[i];
+    }
     for (const listener of best.layer.listeners) {
       const conn = this.connections[listener.conn];
       if (!conn || conn === exceptConn) continue;
@@ -607,13 +732,15 @@ export class Router {
 
       const isValidForListener = best.layer.validate(
         conn,
-        best.match.params as Record<string, string>,
+        params,
       );
       if (isValidForListener instanceof Promise) {
         isValidForListener.then((isValid) => {
           if (isValid) {
             conn.sendToRoute(route, verb, payload);
           }
+        }).catch((error) => {
+          console.error(`Broadcast validation failed for route "${route}"`, error);
         });
       } else if (isValidForListener) {
         conn.sendToRoute(route, verb, payload);
@@ -692,7 +819,16 @@ export class Router {
           return { status: 405, body: { error: `Method ${verb} not allowed for ${path}` } };
         }
 
-        await verbAndHandler.handler(ctx);
+        try {
+          await verbAndHandler.handler(ctx);
+        } catch (error) {
+          console.error(`Error handling HTTP ${verb} ${path}`, error);
+          return {
+            status: 500,
+            body: { error: 'Internal server error' },
+            contentType: 'application/json',
+          };
+        }
 
         if (ctx.error) {
           return { status: ctx.statusCode || 500, body: { error: ctx.error } };
@@ -704,5 +840,43 @@ export class Router {
     }
 
     return { status: 404, body: { error: 'Not found' }, contentType: 'application/json' };
+  }
+
+  public hasHttpRoute(path: string): boolean {
+    return this.inRoutes.some((route) => Boolean(route.match(path)));
+  }
+
+  public canAcceptConnection(reconnectSecret: ConnectionSecret | null = null): boolean {
+    if (
+      reconnectSecret
+      && (this.connections[reconnectSecret] || this.pendingRemovals[reconnectSecret])
+    ) {
+      return true;
+    }
+    return (
+      this.options.maxConnections === false
+      || Object.keys(this.connections).length < this.options.maxConnections
+    );
+  }
+
+  private assertSameIdentity(
+    connection: ServerConnection,
+    identity: ConnectionIdentity | null,
+  ): void {
+    const existingIdentity = connection.getIdentity();
+    if (existingIdentity?.id !== identity?.id) {
+      throw new Error('Connection identity does not match the existing session');
+    }
+  }
+
+  private validateLimits(): void {
+    for (const [name, value] of [
+      ['maxMessagesPerSecond', this.options.maxMessagesPerSecond],
+      ['maxConnections', this.options.maxConnections],
+    ] as const) {
+      if (value !== false && (!Number.isInteger(value) || value <= 0)) {
+        throw new Error(`${name} must be a positive integer or false`);
+      }
+    }
   }
 }

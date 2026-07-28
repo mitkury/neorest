@@ -15,17 +15,17 @@ import {
   Payload,
   RouteVerb,
   ConnectionSecret,
-  MsgDataSet
+  MsgDataSet,
+  MsgWrapper,
+  ConnectionIdentity,
+  SubscriptionAuthorizationResult,
 } from './types';
-import { CommunicationTransport, ServerTransport } from './CommunicationTransport';
-import { msg_ConnDataSet } from './types';
+import { CommunicationTransport } from './CommunicationTransport';
 
 /**
  * Server-side connection implementation
  */
 export class ServerConnection extends ConnectionBase {
-  private static CLOSE_ON_SERVER_AFTER_MS = 5000;
-  
   /**
    * Callback for handling route messages
    */
@@ -34,12 +34,19 @@ export class ServerConnection extends ConnectionBase {
   /**
    * Callback for handling route subscriptions
    */
-  public onSubscribeToRoute: (route: string) => void = () => {};
+  public onSubscribeToRoute: (
+    route: string,
+  ) => Promise<SubscriptionAuthorizationResult> = async () => ({ allowed: true });
   
   /**
    * Callback for handling route unsubscriptions
    */
   public onUnsubscribeFromRoute: (route: string) => void = () => {};
+
+  private readonly identity: Readonly<ConnectionIdentity> | null;
+  private readonly maxMessagesPerSecond: number | false;
+  private inboundWindowStartedAt = Date.now();
+  private inboundMessagesInWindow = 0;
   
   /**
    * Constructor
@@ -48,12 +55,17 @@ export class ServerConnection extends ConnectionBase {
    */
   constructor(
     transport: CommunicationTransport,
-    onDataSet: (data: [string, Payload]) => void = () => {}
+    onDataSet: (data: [string, Payload]) => void = () => {},
+    identity: ConnectionIdentity | null = null,
+    maxMessagesPerSecond: number | false = 100,
   ) {
     super(transport);
+    this.identity = identity
+      ? Object.freeze({ ...identity })
+      : null;
+    this.maxMessagesPerSecond = maxMessagesPerSecond;
     this.onDataSet = onDataSet;
     this.registerRouteHandlers();
-    this.setupServerCloseTimeout();
 
     // Lock down secret: ignore/forbid client attempts to set/override 'secret'
     this.registerHandler(DATA_SET, (msgId, msg) => {
@@ -82,11 +94,18 @@ export class ServerConnection extends ConnectionBase {
   }
 
   /**
+   * Return the immutable identity established by the server handshake.
+   */
+  public getIdentity<T extends ConnectionIdentity = ConnectionIdentity>(): Readonly<T> | null {
+    return this.identity as Readonly<T> | null;
+  }
+
+  /**
    * Get the current communication transport
    * @returns The current transport
    */
   public getTransport(): CommunicationTransport {
-    return (this as any).transport;
+    return this.transport;
   }
 
   /**
@@ -94,15 +113,15 @@ export class ServerConnection extends ConnectionBase {
    * @param newTransport - The new communication transport
    */
   public async setTransport(newTransport: CommunicationTransport): Promise<void> {
-    await super.setTransport(newTransport);
-
-    // Secret is already available in the connection URL, no need to send DATA_SET message
-
     // Clear deduplication and pending ack state so that new client-side
     // message IDs (which typically start from 0) are not mistaken for
     // duplicates of the previous transport session.
     this.receivedMessages = [];
     this.messagesToAck = [];
+
+    await super.setTransport(newTransport);
+
+    // Secret is already available in the connection URL, no need to send DATA_SET message
   }
 
   /**
@@ -153,9 +172,16 @@ export class ServerConnection extends ConnectionBase {
     });
     
     // Handler for subscription messages
-    this.registerHandler(ON_ROUTE, (msgId, msg) => {
+    this.registerHandler(ON_ROUTE, async (msgId, msg) => {
       const subMsg = msg as MsgSubscribeToRoute;
-      this.onSubscribeToRoute(subMsg.route);
+      const authorization = await this.onSubscribeToRoute(subMsg.route);
+      if (!authorization.allowed) {
+        return new_MsgResponseWithCode(
+          msgId,
+          authorization.status || 403,
+          authorization.error || 'Subscription forbidden',
+        );
+      }
       return new_MsgResponseOK(msgId);
     });
     
@@ -167,16 +193,24 @@ export class ServerConnection extends ConnectionBase {
     });
   }
 
-  /**
-   * Set up server-side close timeout
-   */
-  private setupServerCloseTimeout(): void {
-    const originalOnClose = this.onClose;
-    this.onClose = () => {
-      this.clearClosingTimer();
-      this.closingTimer = setTimeout(() => {
-        originalOnClose();
-      }, ServerConnection.CLOSE_ON_SERVER_AFTER_MS);
-    };
+  protected handleMessage(wrapper: MsgWrapper): void {
+    if (this.maxMessagesPerSecond !== false) {
+      const now = Date.now();
+      if (now - this.inboundWindowStartedAt >= 1000) {
+        this.inboundWindowStartedAt = now;
+        this.inboundMessagesInWindow = 0;
+      }
+      if (this.inboundMessagesInWindow >= this.maxMessagesPerSecond) {
+        if (wrapper.id !== -1) {
+          void this.postAndForget(
+            new_MsgResponseWithCode(wrapper.id, 429, 'Server message rate limit exceeded'),
+          );
+        }
+        return;
+      }
+      this.inboundMessagesInWindow++;
+    }
+    super.handleMessage(wrapper);
   }
+
 }
