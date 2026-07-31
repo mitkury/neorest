@@ -19,8 +19,8 @@ Neorest lets you keep one route model for request/response and live updates:
 npm install neorest
 ```
 
-WebTransport server support is optional and requires Node.js 20+ plus the
-current HTTP/3 provider:
+The Node server runtime requires Node.js 20 or newer. WebTransport server
+support additionally requires the optional HTTP/3 provider:
 
 ```bash
 npm install @fails-components/webtransport \
@@ -261,7 +261,8 @@ Inside `packages/neorest/src`:
 
 ### Core model
 
-- `ConnectionBase` owns message IDs, ack/resend bookkeeping, headers, rate limiting, and response callbacks.
+- `ConnectionBase` owns message IDs, response correlation, duplicate-request
+  handling, headers, rate limiting, and response callbacks.
 - `ClientConnection` extends it with reconnect logic, route validation, route subscriptions, and auth headers.
 - `ServerConnection` extends it with route handling, immutable handshake
   identity, inbound rate limiting, and subscription management callbacks wired

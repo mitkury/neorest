@@ -113,11 +113,10 @@ export class ServerConnection extends ConnectionBase {
    * @param newTransport - The new communication transport
    */
   public async setTransport(newTransport: CommunicationTransport): Promise<void> {
-    // Clear deduplication and pending ack state so that new client-side
+    // Clear deduplication state so that new client-side
     // message IDs (which typically start from 0) are not mistaken for
     // duplicates of the previous transport session.
     this.receivedMessages = [];
-    this.messagesToAck = [];
 
     await super.setTransport(newTransport);
 

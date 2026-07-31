@@ -15,8 +15,8 @@ Neorest lets you keep one route model for request/response and live updates:
 npm install neorest
 ```
 
-WebTransport server support is optional and requires Node.js 20+ plus the
-current HTTP/3 provider:
+The Node server runtime requires Node.js 20 or newer. WebTransport server
+support additionally requires the optional HTTP/3 provider:
 
 ```bash
 npm install @fails-components/webtransport \

@@ -7,30 +7,12 @@ import { ConnectionSecret } from '../types';
  */
 function generateSecret(length: number): string {
   const array = new Uint8Array(length);
-  
-  // Use browser crypto if available
-  if (typeof window !== 'undefined' && window.crypto) {
-    window.crypto.getRandomValues(array);
-  } 
-  // Use node crypto if available
-  else if (typeof require !== 'undefined') {
-    try {
-      const crypto = require('crypto');
-      crypto.randomFillSync(array);
-    } catch (e) {
-      // Fallback to Math.random
-      for (let i = 0; i < length; i++) {
-        array[i] = Math.floor(Math.random() * 256);
-      }
-    }
-  } 
-  // Fallback to Math.random
-  else {
-    for (let i = 0; i < length; i++) {
-      array[i] = Math.floor(Math.random() * 256);
-    }
+
+  if (!globalThis.crypto?.getRandomValues) {
+    throw new Error('Secure random number generation is unavailable');
   }
-  
+
+  globalThis.crypto.getRandomValues(array);
   return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
 }
 

@@ -10,6 +10,7 @@ export class WebSocketTransport implements ClientTransport {
   private openCallback: (() => void) | null = null;
   private connectionInfo: ConnectionInfo;
   private authData: Record<string, string> = {};
+  private isClosing = false;
 
   /**
    * Constructor
@@ -28,6 +29,7 @@ export class WebSocketTransport implements ClientTransport {
    * Connect to the server
    */
   async connect(): Promise<void> {
+    this.isClosing = false;
     // Add auth data to URL if provided
     const transportUrl = new URL(this.connectionInfo.url);
     transportUrl.pathname = '/.neorest';
@@ -40,34 +42,45 @@ export class WebSocketTransport implements ClientTransport {
       connectionUrl = urlObj.toString();
     }
     // Create WebSocket
-    this.socket = new WebSocket(connectionUrl);
+    const socket = new WebSocket(connectionUrl);
+    this.socket = socket;
     this.connectionInfo.status = 'connecting';
     
     // Set up handlers
-    this.setupSocketHandlers();
+    this.setupSocketHandlers(socket);
     
     return new Promise((resolve, reject) => {
-      if (!this.socket) {
-        reject(new Error("WebSocket not initialized"));
-        return;
-      }
-      
+      const cleanup = () => {
+        socket.removeEventListener('open', onOpenHandler);
+        socket.removeEventListener('error', onErrorHandler);
+        socket.removeEventListener('close', onCloseHandler);
+      };
       const onOpenHandler = () => {
+        if (this.socket !== socket) return;
         this.connectionInfo.status = 'connected';
+        cleanup();
         resolve();
-        // Clean up the temporary handler
-        if (this.socket) this.socket.removeEventListener('open', onOpenHandler);
       };
       
-      const onErrorHandler = (event: Event) => {
+      const onErrorHandler = () => {
+        if (this.socket !== socket) return;
         this.connectionInfo.status = 'disconnected';
+        cleanup();
         reject(new Error("WebSocket connection failed"));
-        // Clean up the temporary handler
-        if (this.socket) this.socket.removeEventListener('error', onErrorHandler);
+      };
+
+      const onCloseHandler = () => {
+        cleanup();
+        if (this.socket === socket) {
+          this.socket = null;
+          this.connectionInfo.status = 'disconnected';
+        }
+        reject(new Error("WebSocket closed before the connection was established"));
       };
       
-      this.socket.addEventListener('open', onOpenHandler);
-      this.socket.addEventListener('error', onErrorHandler);
+      socket.addEventListener('open', onOpenHandler);
+      socket.addEventListener('error', onErrorHandler);
+      socket.addEventListener('close', onCloseHandler);
     });
   }
 
@@ -75,13 +88,15 @@ export class WebSocketTransport implements ClientTransport {
    * Disconnect from the server
    */
   disconnect(): void {
-    if (this.socket) {
+    this.isClosing = true;
+    const socket = this.socket;
+    this.socket = null;
+    if (socket) {
       try {
-        this.socket.close();
+        socket.close();
       } catch (error) {
         console.error("Error closing WebSocket:", error);
       }
-      this.socket = null;
     }
     
     this.connectionInfo.status = 'disconnected';
@@ -111,13 +126,6 @@ export class WebSocketTransport implements ClientTransport {
   onMessage(callback: (message: MsgWrapper) => void): void {
     this.messageCallback = callback;
     if (this.socket) {
-      // Remove any existing listener
-      const oldListener = this.socket.onmessage;
-      if (oldListener) {
-        this.socket.removeEventListener('message', oldListener as any);
-      }
-      
-      // Add new listener
       this.socket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data as string) as MsgWrapper;
@@ -136,13 +144,6 @@ export class WebSocketTransport implements ClientTransport {
   onClose(callback: () => void): void {
     this.closeCallback = callback;
     if (this.socket) {
-      // Remove any existing listener
-      const oldListener = this.socket.onclose;
-      if (oldListener) {
-        this.socket.removeEventListener('close', oldListener as any);
-      }
-      
-      // Add new listener
       this.socket.onclose = () => {
         this.connectionInfo.status = 'disconnected';
         this.closeCallback!();
@@ -157,13 +158,6 @@ export class WebSocketTransport implements ClientTransport {
   onOpen(callback: () => void): void {
     this.openCallback = callback;
     if (this.socket) {
-      // Remove any existing listener
-      const oldListener = this.socket.onopen;
-      if (oldListener) {
-        this.socket.removeEventListener('open', oldListener as any);
-      }
-      
-      // Add new listener
       this.socket.onopen = () => {
         this.connectionInfo.status = 'connected';
         this.openCallback!();
@@ -202,12 +196,11 @@ export class WebSocketTransport implements ClientTransport {
   /**
    * Set up socket handlers
    */
-  private setupSocketHandlers(): void {
-    if (!this.socket) return;
-    
+  private setupSocketHandlers(socket: WebSocket): void {
     // Set up message handler
     if (this.messageCallback) {
-      this.socket.onmessage = (event) => {
+      socket.onmessage = (event) => {
+        if (this.socket !== socket) return;
         try {
           const data = JSON.parse(event.data as string) as MsgWrapper;
           this.messageCallback!(data);
@@ -219,7 +212,9 @@ export class WebSocketTransport implements ClientTransport {
     
     // Set up close handler
     if (this.closeCallback) {
-      this.socket.onclose = () => {
+      socket.onclose = () => {
+        if (this.socket !== socket) return;
+        this.socket = null;
         this.connectionInfo.status = 'disconnected';
         this.closeCallback!();
       };
@@ -227,15 +222,18 @@ export class WebSocketTransport implements ClientTransport {
     
     // Set up open handler
     if (this.openCallback) {
-      this.socket.onopen = () => {
+      socket.onopen = () => {
+        if (this.socket !== socket) return;
         this.connectionInfo.status = 'connected';
         this.openCallback!();
       };
     }
     
     // Set up error handler
-    this.socket.onerror = (error) => {
-      console.error("WebSocket error:", error);
+    socket.onerror = (error) => {
+      if (this.socket === socket && !this.isClosing) {
+        console.error("WebSocket error:", error);
+      }
     };
   }
 }

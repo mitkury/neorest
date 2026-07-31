@@ -8,7 +8,8 @@ REST-style routes with real-time subscriptions.
 npm install neorest
 ```
 
-Optional production WebTransport server support requires Node.js 20+:
+The Node server runtime requires Node.js 20 or newer. Production WebTransport
+support additionally requires its optional HTTP/3 provider:
 
 ```bash
 npm install @fails-components/webtransport \
@@ -87,3 +88,10 @@ await client.post('/messages', { text: 'hello' });
   `{ id, ...context }` identity.
 - CORS, body size, held long-poll timeout, pending handshakes, HTTP request
   rate, protocol message rate, and logical connection count are configurable.
+- Requests already handed to a transport are not automatically replayed after
+  disconnect. Use application-level idempotency keys for retryable writes.
+
+Deployment details are documented in the
+[WebTransport guide](https://github.com/mitkury/neorest/blob/main/docs/webtransport.md),
+and connection guarantees are described in the
+[connection model](https://github.com/mitkury/neorest/blob/main/docs/connections.md).

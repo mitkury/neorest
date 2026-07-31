@@ -307,27 +307,22 @@ export class ClientConnection extends ConnectionBase {
     if (this.isFullyConnected) return Promise.resolve();
 
     return new Promise((resolve, reject) => {
-      let resolved = false;
-      let checkInterval: ReturnType<typeof setInterval>;
-
+      let settled = false;
+      const finish = (error?: Error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        removeListener();
+        if (error) reject(error);
+        else resolve();
+      };
+      const removeListener = this.onConnectionChange((connected) => {
+        if (connected) finish();
+      });
       const timer = setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          clearInterval(checkInterval);
-          reject(new Error("Connection timeout"));
-        }
+        finish(new Error("Connection timeout"));
       }, timeoutMs);
-
-      checkInterval = setInterval(() => {
-        if (this.isFullyConnected) {
-          if (!resolved) {
-            resolved = true;
-            clearTimeout(timer);
-            clearInterval(checkInterval);
-            resolve();
-          }
-        }
-      }, 100);
+      if (this.isFullyConnected) finish();
     });
   }
 

@@ -29,15 +29,6 @@ export type ConnectionSecret = string;
 export type Payload = object | string | number | boolean | undefined | null | object[] | string[] | number[] | boolean[];
 
 /**
- * Record of sent messages awaiting acknowledgment
- */
-export type SentMessages = {
-  wrappedMsg: MsgWrapper;
-  sentAt: number;
-  sentAmount: number;
-}
-
-/**
  * HTTP verbs and special action types
  */
 export type RouteVerb = "ANY" | "GET" | "POST" | "DELETE" | "LISTEN" | "RESPONSE";

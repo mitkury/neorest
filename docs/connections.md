@@ -71,6 +71,12 @@ Client reconnect is best-effort and bounded:
 
 When reconnect succeeds, the client keeps using the same logical session and restores its subscriptions.
 
+Requests that were queued before a transport became available are sent after
+connection. Requests already handed to a transport are not automatically
+replayed after a disconnect: the server may already have executed them. Such
+requests remain pending until a response or their configured timeout. Retried
+writes should use application-level idempotency keys.
+
 ## HTTP long-polling specifics
 
 HTTP long-polling has an extra transport-local `clientId` used only for the polling channel:

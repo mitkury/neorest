@@ -9,7 +9,7 @@ export default defineConfig([
       'core': 'src/core/index.ts',
     },
     format: ['esm', 'cjs'],
-    dts: false,
+    dts: true,
     splitting: false,
     sourcemap: true,
     clean: true,
@@ -20,7 +20,7 @@ export default defineConfig([
       '@fails-components/webtransport-transport-http3-quiche',
     ],
     outDir: 'dist',
-    target: 'node18',
+    target: 'node20',
     platform: 'node',
     outExtension({ format }) {
       return {

@@ -74,7 +74,7 @@ export class Router {
   /**
    * Router options
    */
-  protected options: RouterOptions;
+  protected options: Required<RouterOptions>;
 
   /**
    * Server adapter for platform-specific implementation
@@ -87,11 +87,10 @@ export class Router {
    */
   constructor(options?: RouterOptions) {
     this.options = {
-      logLevel: 'info',
-      validateRoutes: true,
-      maxMessagesPerSecond: 100,
-      maxConnections: 10_000,
-      ...options
+      logLevel: options?.logLevel ?? 'info',
+      validateRoutes: options?.validateRoutes ?? true,
+      maxMessagesPerSecond: options?.maxMessagesPerSecond ?? 100,
+      maxConnections: options?.maxConnections ?? 10_000,
     };
     this.validateLimits();
 

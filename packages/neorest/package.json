@@ -9,39 +9,72 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "browser": "./dist/index.browser.js",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.cjs",
+      "browser": {
+        "import": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.browser.js"
+        },
+        "require": {
+          "types": "./dist/index.d.cts",
+          "default": "./dist/index.browser.cjs"
+        },
+        "default": "./dist/index.browser.js"
+      },
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      },
       "default": "./dist/index.mjs"
     },
     "./node": {
-      "types": "./dist/node/index.d.ts",
-      "import": "./dist/node.mjs",
-      "require": "./dist/node.cjs"
+      "import": {
+        "types": "./dist/node.d.ts",
+        "default": "./dist/node.mjs"
+      },
+      "require": {
+        "types": "./dist/node.d.cts",
+        "default": "./dist/node.cjs"
+      }
     },
-    "./browser": "./dist/index.browser.js",
+    "./browser": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.browser.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.browser.cjs"
+      }
+    },
     "./core": {
-      "types": "./dist/core/index.d.ts",
-      "import": "./dist/core.mjs",
-      "require": "./dist/core.cjs"
+      "import": {
+        "types": "./dist/core.d.ts",
+        "default": "./dist/core.mjs"
+      },
+      "require": {
+        "types": "./dist/core.d.cts",
+        "default": "./dist/core.cjs"
+      }
     }
-  },
-  "browser": {
-    "./dist/node.mjs": false,
-    "./dist/node.cjs": false,
-    "ws": false,
-    "fs": false,
-    "path": false,
-    "crypto": false
   },
   "scripts": {
     "prebuild": "rimraf dist tsconfig.tsbuildinfo",
-    "build": "tsup && tsc -p tsconfig.json --emitDeclarationOnly --outDir dist",
+    "build": "tsup",
+    "prepack": "npm run build",
     "clean": "rimraf dist tsconfig.tsbuildinfo"
   },
   "author": "Dmitry Kury (https://dkury.com)",
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "dist"
   ],
@@ -78,7 +111,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/mitkury/neorest.git"
+    "url": "git+https://github.com/mitkury/neorest.git",
+    "directory": "packages/neorest"
   },
-  "homepage": "https://github.com/mitkury/neorest"
+  "bugs": {
+    "url": "https://github.com/mitkury/neorest/issues"
+  },
+  "homepage": "https://github.com/mitkury/neorest#readme"
 }

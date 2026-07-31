@@ -2,14 +2,12 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
-    "composite": true,
     "declaration": true,
-    "declarationMap": true,
     "module": "ESNext",
     "target": "ES2020",
     "moduleResolution": "Bundler",
     "skipLibCheck": true,
-    "strict": false
+    "strict": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]

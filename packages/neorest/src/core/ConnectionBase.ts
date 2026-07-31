@@ -34,11 +34,6 @@ export abstract class ConnectionBase {
 
   protected transport: CommunicationTransport;
   protected nextMsgId: MsgID = 0;
-  protected messagesToAck: {
-    wrappedMsg: MsgWrapper;
-    sentAt: number;
-    sentAmount: number;
-  }[] = [];
   protected receivedMessages: MessageResponsePair[] = [];
   protected messagesToSendAfterReconnect: MsgWrapper[] = [];
   protected callbacks: Map<MsgID, (response: RouteResponse<any>) => void> = new Map();
@@ -73,7 +68,6 @@ export abstract class ConnectionBase {
       data: '',
       status: 503,
     });
-    this.messagesToAck = [];
     this.messagesToSendAfterReconnect = [];
     this.disconnectTransport();
   }
@@ -333,48 +327,11 @@ export abstract class ConnectionBase {
     }
   }
 
-  private static messageNeedsAck(wrappedMsg: MsgWrapper): boolean {
-    return wrappedMsg.id !== -1 && wrappedMsg.msg.type !== RESPONSE;
-  }
-
-  protected sendWrappedMsg(wrappedMsg: MsgWrapper, sentIdx = -1): void {
-    if (ConnectionBase.messageNeedsAck(wrappedMsg)) {
-      let targetIndex = sentIdx;
-      if (sentIdx === -1) {
-        for (let i = this.messagesToAck.length - 1; i >= 0; i--) {
-          if (this.messagesToAck[i].wrappedMsg.id === wrappedMsg.id) {
-            targetIndex = i;
-            break;
-          }
-        }
-      }
-
-      if (targetIndex === -1) {
-        this.messagesToAck.push({
-          wrappedMsg,
-          sentAt: Date.now(),
-          sentAmount: 1,
-        });
-      } else {
-        this.messagesToAck[targetIndex].sentAmount++;
-        this.messagesToAck[targetIndex].sentAt = Date.now();
-      }
-    }
-
+  protected sendWrappedMsg(wrappedMsg: MsgWrapper): void {
     this.transport.send(wrappedMsg);
   }
 
-  private removeMessageToAck(id: MsgID): void {
-    for (let i = this.messagesToAck.length - 1; i >= 0; i--) {
-      if (this.messagesToAck[i].wrappedMsg.id === id) {
-        this.messagesToAck.splice(i, 1);
-        return;
-      }
-    }
-  }
-
   private removePendingMessage(id: MsgID): void {
-    this.removeMessageToAck(id);
     this.messagesToSendAfterReconnect = this.messagesToSendAfterReconnect.filter(
       (message) => message.id !== id,
     );
