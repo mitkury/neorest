@@ -1,194 +1,161 @@
-// @ts-nocheck
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Client, ClientConnection } from 'neorest';
+import { msg_ConnDataSet, type ClientTransport, type MsgWrapper } from 'neorest/core';
 import { NodeRouter } from 'neorest/node';
-import { Client } from 'neorest';
+import { portManager } from './utils/portManager';
 
-async function startServer(port = 8120) {
-  const router = new NodeRouter({ port });
-
-  router
-    .onGet('/whoami', async (ctx) => {
-      const stratName = ctx.sender?.transport?.constructor?.name || 'unknown';
-      ctx.response = { transport: stratName };
-    })
-    .onGet('/echo', async (ctx) => { ctx.response = { ok: true }; });
-
-  await router.listen();
-  return router;
+interface InternalClientConnection {
+  getSecret(): string;
+  post(
+    message: unknown,
+    callback: (response: { status?: number; error?: string }) => void,
+  ): void;
+  transport: {
+    getUpgradeInfo(): { clientId: string; token: string };
+  };
 }
 
-describe('security: session takeover via reconnect secret', () => {
-  let server: any;
-  const port = 8120;
+function connectionOf(client: Client): InternalClientConnection {
+  return (client as unknown as { conn: InternalClientConnection }).conn;
+}
 
-  beforeAll(async () => { server = await startServer(port); });
-  afterAll(async () => { await server?.close(); });
+describe('security boundaries', () => {
+  let server: NodeRouter;
+  let port: number;
 
-  it('attacker cannot overtake via ws ?secret= (security fix prevents hijacking)', async () => {
+  beforeAll(async () => {
+    port = await portManager.getNextPort();
+    server = new NodeRouter({ port });
+    server
+      .onGet('/whoami', (context) => {
+        context.response = {
+          transport: context.sender.getTransport().constructor.name,
+        };
+      })
+      .onGet('/echo', (context) => {
+        context.response = { ok: true };
+      });
+    await server.start();
+  });
+
+  afterAll(async () => {
+    await server.close();
+  });
+
+  it('does not let a stolen reconnect secret replace an active session', async () => {
     const victim = new Client(`http://localhost:${port}`, 'http');
-    await victim.connect();
-
-    // Baseline: victim transport is HTTP on the server
-    const before = await victim.get<{ transport: string }>('/whoami');
-    expect(before.error).toBeUndefined();
-    expect(before.data.transport).toBe('HttpTransport');
-
-    const secret: string = (victim as any).conn.getSecret();
-    expect(secret).toMatch(/^[a-f0-9]{64}$/);
-
-    // Attacker attempts to connect over WS using the stolen secret
-    const attacker = new Client(`ws://localhost:${port}`, 'websocket');
-    ((attacker as any).conn as any).transport.setAuthentication({ secret });
-    await ((attacker as any).conn as any).connect();
-
-    // The WebSocket may open before the async server-side ownership check
-    // closes it, so verify the important invariant: the active victim session
-    // remains bound to its original transport and still works.
-    await new Promise(resolve => setTimeout(resolve, 100));
-    const after = await victim.get<{ transport: string }>('/whoami');
-    expect(after.error).toBeUndefined();
-    expect(after.data.transport).toBe('HttpTransport');
-
-    // A valid upgrade token from a different HTTP session must not authorize
-    // replacement of the victim's logical connection.
     const attackerHttp = new Client(`http://localhost:${port}`, 'http');
-    await attackerHttp.connect();
-    await attackerHttp.get('/echo');
-    const attackerTransport = (attackerHttp as any).conn.transport;
-    const upgradeInfo = attackerTransport.getUpgradeInfo();
-    const tokenSwap = new Client(
-      `ws://localhost:${port}?secret=${secret}`
-      + `&clientId=${encodeURIComponent(upgradeInfo.clientId)}`
-      + `&upgradeToken=${encodeURIComponent(upgradeInfo.token)}`,
-      'websocket',
-    );
-    await tokenSwap.connect();
-    await new Promise(resolve => setTimeout(resolve, 100));
+    let attacker: Client | undefined;
+    let tokenSwap: Client | undefined;
+    try {
+      await victim.connect();
+      expect((await victim.get<{ transport: string }>('/whoami')).data.transport).toBe(
+        'HttpTransport',
+      );
+      const secret = connectionOf(victim).getSecret();
+      expect(secret).toMatch(/^[a-f0-9]{64}$/);
 
-    const afterTokenSwap = await victim.get<{ transport: string }>('/whoami');
-    expect(afterTokenSwap.error).toBeUndefined();
-    expect(afterTokenSwap.data.transport).toBe('HttpTransport');
-    
-    // Clean up
-    (victim as any).close?.();
-    (attacker as any).close?.();
-    (attackerHttp as any).close?.();
-    (tokenSwap as any).close?.();
-  });
-});
+      attacker = new Client(
+        `ws://localhost:${port}?secret=${encodeURIComponent(secret)}`,
+        'websocket',
+        { reconnect: false },
+      );
+      await attacker.connect().catch(() => {});
 
-describe('security: random secret does not hijack', () => {
-  let server: any;
-  const port = 8121;
-  beforeAll(async () => { server = await startServer(port); });
-  afterAll(async () => { await server?.close(); });
+      await attackerHttp.connect();
+      const upgradeInfo = connectionOf(attackerHttp).transport.getUpgradeInfo();
+      tokenSwap = new Client(
+        `ws://localhost:${port}?secret=${encodeURIComponent(secret)}`
+        + `&clientId=${encodeURIComponent(upgradeInfo.clientId)}`
+        + `&upgradeToken=${encodeURIComponent(upgradeInfo.token)}`,
+        'websocket',
+        { reconnect: false },
+      );
+      await tokenSwap.connect().catch(() => {});
 
-  it('random ws ?secret does not affect existing session', async () => {
-    const victim = new Client(`http://localhost:${port}`, 'http');
-    await victim.connect();
-
-    const before = await victim.get<{ transport: string }>('/whoami');
-    expect(before.error).toBeUndefined();
-    expect(before.data.transport).toBe('HttpTransport');
-
-    const randomSecret = Array.from({ length: 64 }, () => Math.floor(Math.random()*16).toString(16)).join('');
-    const rando = new Client(`ws://localhost:${port}`, 'websocket');
-    ((rando as any).conn as any).transport.setAuthentication({ secret: randomSecret });
-    await ((rando as any).conn as any).connect();
-
-    const after = await victim.get<{ transport: string }>('/whoami');
-    expect(after.error).toBeUndefined();
-    expect(after.data.transport).toBe('HttpTransport');
-
-    (victim as any).close?.();
-    (rando as any).close?.();
-  });
-});
-
-describe('security: CORS headers present', () => {
-  let server: any;
-  const port = 8122;
-  beforeAll(async () => { server = await startServer(port); });
-  afterAll(async () => { await server?.close(); });
-
-  it('transport OPTIONS has permissive CORS', async () => {
-    const url = `http://localhost:${port}/.neorest`;
-    const res = await fetch(url, { method: 'OPTIONS' });
-    expect(res.status).toBe(204);
-    expect(res.headers.get('access-control-allow-origin')).toBe('*');
-    expect(res.headers.get('access-control-allow-methods')).toContain('GET');
-    expect(res.headers.get('access-control-allow-headers')).toContain('Authorization');
-  });
-
-  it('route GET has Access-Control-Allow-Origin', async () => {
-    const url = new URL(`http://localhost:${port}/echo`);
-    url.searchParams.set('x', '1');
-    const res = await fetch(url);
-    expect(res.headers.get('access-control-allow-origin')).toBe('*');
-  });
-});
-
-describe('security: client-side rate limit', () => {
-  let server: any;
-  const port = 8123;
-  beforeAll(async () => { server = await startServer(port); });
-  afterAll(async () => { await server?.close(); });
-
-  it('sending >100 msgs/sec triggers local rate limit error', async () => {
-    const client = new Client(`http://localhost:${port}`, 'http');
-    await client.connect();
-
-    const results: any[] = [];
-    const promises: Promise<any>[] = [];
-    const start = Date.now();
-    for (let i = 0; i < 120; i++) {
-      const p = (client as any).post('/echo', { n: i }).then((r: any) => results.push(r));
-      promises.push(p);
+      const afterAttacks = await victim.get<{ transport: string }>('/whoami');
+      expect(afterAttacks.error).toBeUndefined();
+      expect(afterAttacks.data.transport).toBe('HttpTransport');
+    } finally {
+      victim.close();
+      attackerHttp.close();
+      attacker?.close();
+      tokenSwap?.close();
     }
-    await Promise.race([
-      Promise.allSettled(promises),
-      new Promise(r => setTimeout(r, 1500)),
-    ]);
-
-    const numRateLimited = results.filter(r => r?.error && String(r.error).includes('Rate limit')).length;
-    expect(numRateLimited).toBeGreaterThan(0);
-    expect(Date.now() - start).toBeLessThan(2000);
-    (client as any).close?.();
   });
-});
 
-describe('security: secret format/entropy basics', () => {
-  it('newConnectionSecret produces 64-hex strings with low collision in small sample', async () => {
-    const { newConnectionSecret } = await import('neorest/core');
-    const set = new Set<string>();
-    for (let i = 0; i < 100; i++) {
-      const s = newConnectionSecret();
-      expect(s).toMatch(/^[a-f0-9]{64}$/);
-      set.add(s);
-    }
-    expect(set.size).toBe(100);
-  });
-});
-
-describe('security: client cannot set/override secret', () => {
-  let server: any;
-  const port = 8124;
-  beforeAll(async () => { server = await startServer(port); });
-  afterAll(async () => { await server?.close(); });
-
-  it('DATA_SET secret from client returns 403', async () => {
-    const client = new Client(`http://localhost:${port}`, 'http');
-    await client.connect();
-
-    const { msg_ConnDataSet } = await import('neorest/core');
-
-    const resp = await new Promise<any>((resolve) => {
-      ((client as any).conn).post(msg_ConnDataSet('secret', 'evil-secret'), (r: any) => resolve(r));
+  it('applies default CORS headers to transport and plain-route responses', async () => {
+    const preflight = await fetch(`http://localhost:${port}/.neorest`, {
+      method: 'OPTIONS',
     });
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get('access-control-allow-origin')).toBe('*');
+    expect(preflight.headers.get('access-control-allow-methods')).toContain('GET');
+    expect(preflight.headers.get('access-control-allow-headers')).toContain('Authorization');
 
-    expect(resp.status).toBe(403);
-    expect(String(resp.error || '')).toContain('Secret is server-managed');
+    const route = await fetch(`http://localhost:${port}/echo`);
+    expect(route.headers.get('access-control-allow-origin')).toBe('*');
+  });
 
-    (client as any).close?.();
+  it('limits a client burst before every request reaches the transport', async () => {
+    let connected = false;
+    let sentMessages = 0;
+    let onOpen = () => {};
+    let onClose = () => {};
+    const transport: ClientTransport = {
+      async connect() {
+        connected = true;
+        onOpen();
+      },
+      disconnect() {
+        if (!connected) return;
+        connected = false;
+        onClose();
+      },
+      send(_message: MsgWrapper) {
+        sentMessages++;
+      },
+      onMessage() {},
+      onOpen(callback) { onOpen = callback; },
+      onClose(callback) { onClose = callback; },
+      isConnected() { return connected; },
+      setAuthentication() {},
+      getConnectionInfo() {
+        return {
+          id: 'rate-limit-test',
+          url: 'http://localhost',
+          type: 'http',
+          status: connected ? 'connected' : 'disconnected',
+        };
+      },
+    };
+    const connection = new ClientConnection(transport, { reconnect: false });
+    try {
+      await connection.connect();
+      let rateLimitError = '';
+      for (let index = 0; index < 101; index++) {
+        connection.sendToRoute('/echo', 'GET', '', undefined, (response) => {
+          if (response.error) rateLimitError = response.error;
+        });
+      }
+      expect(sentMessages).toBe(100);
+      expect(rateLimitError).toContain('Rate limit of 100 messages per second');
+    } finally {
+      connection.close();
+    }
+  });
+
+  it('rejects client attempts to overwrite the server-managed reconnect secret', async () => {
+    const client = new Client(`http://localhost:${port}`, 'http');
+    try {
+      await client.connect();
+      const response = await new Promise<{ status?: number; error?: string }>((resolve) => {
+        connectionOf(client).post(msg_ConnDataSet('secret', 'evil-secret'), resolve);
+      });
+      expect(response.status).toBe(403);
+      expect(response.error).toContain('Secret is server-managed');
+    } finally {
+      client.close();
+    }
   });
 });

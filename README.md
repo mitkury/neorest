@@ -23,6 +23,12 @@ npm install @fails-components/webtransport \
   @fails-components/webtransport-transport-http3-quiche
 ```
 
+Server-terminated live routes additionally require a Node WebRTC runtime:
+
+```bash
+npm install @roamhq/wrtc
+```
+
 ## Node.js server
 
 ```ts
@@ -58,6 +64,60 @@ await client.subscribe('/messages', (event) => {
 
 await client.post('/messages', { text: 'hello' });
 ```
+
+## Live audio, video, and data
+
+Live routes connect a browser to a WebRTC peer hosted by your Node server.
+Neorest owns authenticated signaling, trickle ICE, ordering, reconnect delivery,
+and peer lifecycle. Media and data-channel traffic flows over WebRTC rather
+than through JSON routes.
+
+```ts
+import wrtc from '@roamhq/wrtc';
+
+const router = new NodeRouter({
+  port: 8080,
+  webRtc: wrtc,
+  connectionGracePeriodMs: 15_000,
+});
+
+router.onLive('/agents/:agentId/realtime', {
+  authorize: ({ connection, params }) => {
+    return agents.canRun(connection.getIdentity()?.id, params.agentId);
+  },
+  iceServers: async ({ connection }) => {
+    return turn.issueCredentials(connection.getIdentity()?.id);
+  },
+  open: async ({ params, peer }) => {
+    const agent = await agents.openRealtime(params.agentId);
+    peer.onTrack((event) => agent.acceptTrack(event.track));
+    peer.onDataChannel((channel) => agent.attachChannel(channel));
+    const outputTrack = agent.createAudioOutputTrack();
+    peer.addTrack(outputTrack);
+  },
+});
+```
+
+```ts
+const call = await client.live(`/agents/${agentId}/realtime`, {
+  audio: true,
+  receive: { audio: true },
+  data: {
+    events: { ordered: true },
+  },
+});
+
+call.onRemoteStream((stream) => {
+  remoteAudio.srcObject = stream;
+});
+call.onStateChange((state) => console.log(state));
+
+await call.leave();
+```
+
+Node has no built-in `RTCPeerConnection`, so the server injects a WebRTC runtime;
+Neorest performs the negotiation around it. Relayed two-client calls are also
+available explicitly through `router.onLiveRoom()`. See [docs/live.md](docs/live.md).
 
 Client options support default request headers, request timeouts, and reconnect
 policy:

@@ -154,36 +154,26 @@ server-side reconnect window.
 
 ## WebRTC voice path
 
-WorldAgents provides the right reference shape for Sila2:
+Use a server-terminated live route for Sila voice:
 
 1. Create a durable Sila conversation/session.
-2. Issue a short-lived realtime ticket.
-3. Create a browser `RTCPeerConnection`.
-4. Add microphone audio and an audio receive transceiver.
-5. Create an ordered data channel for small JSON session events.
-6. Send the offer immediately and use trickle ICE.
-7. Exchange sequenced candidates using an `attemptId`.
-8. Distinguish `transport_ready` from `agent_ready`.
-9. Rebuild the peer with a fresh ticket after a terminal failure.
+2. Register `router.onLive('/sessions/:sessionId/realtime', ...)` and authorize
+   it from the immutable Neorest connection identity.
+3. Configure the injected Node WebRTC peer with assistant audio, inbound media
+   handlers, and an ordered data channel.
+4. Call `client.live()` with microphone audio and `receive.audio` enabled.
+5. Distinguish WebRTC transport readiness from agent/provider readiness.
+6. Let Neorest sequence trickle ICE and perform bounded browser ICE restarts.
 
-Suggested Neorest signaling routes:
-
-- `POST /sessions/:sessionId/realtime/ticket`
-- `POST /sessions/:sessionId/realtime/webrtc/offer`
-- `POST /sessions/:sessionId/realtime/webrtc/candidate`
-- `POST /sessions/:sessionId/realtime/webrtc/end-of-candidates`
-- `GET /sessions/:sessionId/realtime/webrtc/candidates`
-
-A server-to-client Neorest subscription can eventually replace candidate
-polling for the browser client, but polling is a simpler first contract if
-native clients are likely. Either way, candidate operations should be
-idempotent and ordered. WebRTC signaling must have its own retry, attempt, and
-candidate-sequence semantics rather than relying on the application transport.
+The live route replaces ticket, offer, candidate, end-of-candidates, and
+candidate-polling endpoints for Neorest clients. Applications can retain legacy
+HTTP signaling temporarily for native clients that do not yet implement the
+Neorest live wire protocol.
 
 Production voice requirements learned from WorldAgents:
 
 - STUN plus TURN, including TURN/TCP and TURN/TLS on port 443
-- short-lived tickets and bounded signaling attempts
+- authenticated route authorization and bounded signaling attempts
 - an 8-second grace window for transient WebRTC `disconnected` states
 - separate transport and model readiness states
 - selected candidate type, RTT, jitter, packet loss, bitrate, reconnect, and

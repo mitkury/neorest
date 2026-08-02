@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { NodeRouter } from 'neorest/node';
 import { Client } from 'neorest';
 import type { RequestContext } from 'neorest/core';
+import { portManager } from './utils/portManager';
 
-async function startServer(port = 8104) {
+async function startServer(port: number) {
   const router = new NodeRouter({ port, disableWebSocket: true });
 
   type Handler = (ctx: RequestContext) => void | Promise<void>;
@@ -33,7 +34,7 @@ async function startServer(port = 8104) {
 
 describe('custom middleware inline in test file', () => {
   it('rejects when header missing and succeeds when present', async () => {
-    const port = 8104;
+    const port = await portManager.getNextPort();
     const server = await startServer(port);
     let client: Client | null = null;
 
@@ -47,7 +48,7 @@ describe('custom middleware inline in test file', () => {
       expect(bad.status).toBe(400);
 
       // With header should succeed and return 201
-      const good = await client.post<{ ok: boolean; echoed: any }>(
+      const good = await client.post<{ ok: boolean; echoed: { a: number } }>(
         '/mw/test',
         { a: 2 },
         { 'x-request-id': 'req-123' }
@@ -55,10 +56,10 @@ describe('custom middleware inline in test file', () => {
       expect(good.error).toBeUndefined();
       expect(good.status).toBe(201);
       expect(good.data.ok).toBe(true);
-      expect((good.data as any).echoed).toEqual({ a: 2 });
+      expect(good.data.echoed).toEqual({ a: 2 });
     } finally {
-      try { (client as any)?.close?.(); } catch {}
-      await (server as any).close();
+      client?.close();
+      await server.close();
     }
   });
 });

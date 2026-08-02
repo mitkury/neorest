@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { NodeRouter } from 'neorest/node';
 import { withAuth } from 'neorest/core';
 import { Client } from 'neorest';
+import { portManager } from './utils/portManager';
 
-async function startServer(port = 8103) {
+async function startServer(port: number) {
   const router = new NodeRouter({ port, disableWebSocket: true });
 
   // Mock token store
@@ -23,7 +24,7 @@ async function startServer(port = 8103) {
 
 describe('auth middleware: bearer token success and invalidation', () => {
   it('issues a token, allows access with token, then denies after invalidation', async () => {
-    const port = 8103;
+    const port = await portManager.getNextPort();
     const server = await startServer(port);
     let client: Client | null = null;
 
@@ -46,8 +47,8 @@ describe('auth middleware: bearer token success and invalidation', () => {
       const denied = await client.get('/private/info');
       expect(denied.error).toBe('Unauthorized');
     } finally {
-      try { (client as any)?.close?.(); } catch {}
-      await (server as any).close();
+      client?.close();
+      await server.close();
     }
   });
 });

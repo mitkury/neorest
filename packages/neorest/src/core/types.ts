@@ -31,7 +31,7 @@ export type Payload = object | string | number | boolean | undefined | null | ob
 /**
  * HTTP verbs and special action types
  */
-export type RouteVerb = "ANY" | "GET" | "POST" | "DELETE" | "LISTEN" | "RESPONSE";
+export type RouteVerb = "ANY" | "GET" | "POST" | "DELETE" | "LISTEN" | "LIVE" | "RESPONSE";
 
 /**
  * Base message interface
@@ -494,6 +494,16 @@ export interface RouterOptions {
    * Set to false to disable. Defaults to 10,000.
    */
   maxConnections?: number | false;
+  /**
+   * How long a disconnected logical connection is retained for transport
+   * replacement. Live sessions continue during this window. Defaults to 1s.
+   */
+  connectionGracePeriodMs?: number;
+  /**
+   * Node and other server runtimes inject their WebRTC implementation here.
+   * Neorest owns signaling and lifecycle around the returned peer connection.
+   */
+  createLivePeerConnection?: import('./live').LivePeerConnectionFactory;
 }
 
 /**

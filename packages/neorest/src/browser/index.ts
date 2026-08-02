@@ -1,6 +1,8 @@
 // Export client-side functionality for browser
 export { Client } from '../Client';
 export { ClientConnection } from '../ClientConnection';
+export { LiveSession } from '../LiveSession';
+export type { LiveOptions, LiveSessionState } from '../LiveSession';
 
 // Export transports for browser
 export { WebSocketTransport } from '../transports/WebSocketTransport';
@@ -20,4 +22,5 @@ export type {
   MsgType,
   MsgWrapper,
   ConnectionSecret,
+  LiveIceServer,
 } from '../core';

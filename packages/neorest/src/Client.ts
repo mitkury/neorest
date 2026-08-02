@@ -9,12 +9,14 @@ import {
 } from './core';
 import { ClientConnection } from './ClientConnection';
 import { createTransport } from './transports/index';
+import { LiveClient, type LiveOptions, type LiveSession } from './LiveClient';
 
 /**
  * Neorest client for connecting to a server
  */
 export class Client {
   private conn: ClientConnection;
+  private readonly liveClient: LiveClient;
   
   /**
    * Constructor
@@ -47,6 +49,7 @@ export class Client {
     
     const transport = createTransport(transportType, connectionUrl, options);
     this.conn = new ClientConnection(transport, options);
+    this.liveClient = new LiveClient(this.conn);
   }
 
   /**
@@ -86,6 +89,7 @@ export class Client {
    * @returns A promise that resolves when the connection is established
    */
   public async setUrl(url: string, transportType?: TransportMode): Promise<void> {
+    await this.liveClient.leaveAll();
     return this.conn.setUrl(url, transportType);
   }
 
@@ -93,7 +97,18 @@ export class Client {
    * Close the connection
    */
   public close(): void {
+    this.liveClient.close();
     this.conn.close();
+  }
+
+  /** Open a WebRTC session addressed by a normal Neorest route. */
+  public live(route: string, options?: LiveOptions): Promise<LiveSession> {
+    return this.liveClient.join(route, options);
+  }
+
+  /** Return the active live session for a concrete route, if any. */
+  public getLiveSession(route: string): LiveSession | undefined {
+    return this.liveClient.get(route);
   }
 
   /**

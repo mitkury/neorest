@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { NodeRouter } from 'neorest/node';
 import { Client } from 'neorest';
+import { portManager } from './utils/portManager';
 
 async function startServer(port: number, register: (router: NodeRouter) => void) {
   const router = new NodeRouter({ port });
@@ -11,7 +12,7 @@ async function startServer(port: number, register: (router: NodeRouter) => void)
 
 describe('path conflict resolution (static vs parameterized)', () => {
   it('prefers static over parameterized when both match (param registered first)', async () => {
-    const port = 8111;
+    const port = await portManager.getNextPort();
     const server = await startServer(port, (router) => {
       router
         .onGet('/users/:id', async (ctx) => { ctx.response = `param:${ctx.params.id}`; })
@@ -29,13 +30,13 @@ describe('path conflict resolution (static vs parameterized)', () => {
       const res2 = await client.get('/users/123');
       expect(res2.data).toBe('param:123');
     } finally {
-      try { (client as any)?.close?.(); } catch {}
-      await (server as any).close();
+      client?.close();
+      await server.close();
     }
   });
 
   it('prefers static over parameterized when both match (static registered first)', async () => {
-    const port = 8112;
+    const port = await portManager.getNextPort();
     const server = await startServer(port, (router) => {
       router
         .onGet('/users/new', async (ctx) => { ctx.response = 'static'; })
@@ -53,13 +54,13 @@ describe('path conflict resolution (static vs parameterized)', () => {
       const res2 = await client.get('/users/999');
       expect(res2.data).toBe('param:999');
     } finally {
-      try { (client as any)?.close?.(); } catch {}
-      await (server as any).close();
+      client?.close();
+      await server.close();
     }
   });
 
   it('avoids duplicate broadcast subscriptions when static and param out routes both exist', async () => {
-    const port = 8113;
+    const port = await portManager.getNextPort();
     const server = await startServer(port, (router) => {
       router
         .onPost('/send', async (ctx) => {
@@ -99,8 +100,8 @@ describe('path conflict resolution (static vs parameterized)', () => {
       expect(received[0]).toEqual({ hello: 'world' });
       expect(received[1]).toEqual({ hello: 'world' });
     } finally {
-      try { (client as any)?.close?.(); } catch {}
-      await (server as any).close();
+      client?.close();
+      await server.close();
     }
   });
 });

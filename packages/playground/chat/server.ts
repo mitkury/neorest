@@ -15,7 +15,11 @@ router.onGet('/', (ctx) => {
 // POST / => create a new message and broadcast it
 router.onPost('/', (ctx) => {
   console.log('POST /', ctx.data);
-  const text = (ctx.data && typeof ctx.data.text === 'string') ? ctx.data.text : '';
+  const data = ctx.data;
+  const text = data && typeof data === 'object' && !Array.isArray(data)
+    && 'text' in data && typeof data.text === 'string'
+    ? data.text
+    : '';
   const trimmed = text.trim();
   if (!trimmed) {
     ctx.statusCode = 400;

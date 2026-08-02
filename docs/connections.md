@@ -106,6 +106,14 @@ support future lossy application events. WebRTC remains the appropriate path
 for browser microphone/audio tracks, echo cancellation, jitter buffering, and
 peer media negotiation.
 
+Neorest live routes manage that WebRTC negotiation through the existing route
+protocol. `LIVE` route messages form the reliable control plane; established
+media tracks and data channels form a separate data plane. The default topology
+terminates WebRTC in the Node server. An explicit live-room API can instead
+relay signaling between two clients. A healthy WebRTC session is not closed
+merely because its Neorest transport is being replaced during
+`connectionGracePeriodMs`.
+
 ## What is connection-scoped
 
 These properties belong to the logical connection, not to one specific socket:

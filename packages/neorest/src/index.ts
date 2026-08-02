@@ -1,5 +1,7 @@
 // Export main client class
 export { Client } from './Client';
+export { LiveSession } from './LiveSession';
+export type { LiveOptions, LiveSessionState } from './LiveSession';
 
 // Export transports for advanced usage
 export { WebSocketTransport } from './transports/WebSocketTransport';
@@ -27,4 +29,14 @@ export type {
   TransportMode,
   WebTransportCertificateHash,
   WebTransportClientOptions,
+  LiveIceServer,
+  LivePeerConnectionFactory,
+  LiveServerOptions,
+  LiveServerPeer,
+  LiveServerSessionContext,
+  LiveServerCloseContext,
+  LiveRoomOptions,
+  LiveRoomContext,
+  LiveRoomParticipantContext,
+  LiveRoomLeaveContext,
 } from './core';

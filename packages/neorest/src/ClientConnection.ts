@@ -14,6 +14,8 @@ import {
   Payload,
   TransportMode,
   newConnectionSecret,
+  LiveClientMessage,
+  LiveServerEvent,
 } from './core';
 import { createTransport } from './transports/index';
 
@@ -33,6 +35,7 @@ export class ClientConnection extends ConnectionBase {
   private defaultRequestHeaders: Record<string, string> = {};
   private requestTimeoutMs?: number;
   private connectionChangeListeners = new Set<(connected: boolean) => void>();
+  private liveRoutes = new Map<string, (event: LiveServerEvent) => void>();
   private readonly connectionOptions: ConnectionOptions;
   
   /**
@@ -200,7 +203,8 @@ export class ClientConnection extends ConnectionBase {
     verb: RouteVerb, 
     payload: Payload, 
     headers?: Record<string, string>, 
-    callback?: (response: RouteResponse<T>) => void
+    callback?: (response: RouteResponse<T>) => void,
+    timeoutMs: number | undefined = this.requestTimeoutMs,
   ): void {
     // Validate route
     this.validateRoute(route);
@@ -226,7 +230,7 @@ export class ClientConnection extends ConnectionBase {
     
     // Send message and register callback
     this.messagesSentInASecond++;
-    this.postAndExpectResponse(msg, callback, this.requestTimeoutMs);
+    this.postAndExpectResponse(msg, callback, timeoutMs);
   }
 
   /**
@@ -251,6 +255,42 @@ export class ClientConnection extends ConnectionBase {
     };
     
     this.postAndForget(msg);
+  }
+
+  public sendLive<T>(
+    route: string,
+    message: LiveClientMessage,
+    timeoutMs = this.requestTimeoutMs ?? 15_000,
+  ): Promise<RouteResponse<T>> {
+    return new Promise((resolve) => {
+      this.sendToRoute<T>(
+        route,
+        'LIVE',
+        message as unknown as Payload,
+        undefined,
+        resolve,
+        timeoutMs,
+      );
+    });
+  }
+
+  public registerLiveRoute(
+    route: string,
+    listener: (event: LiveServerEvent) => void,
+  ): void {
+    this.validateRoute(route);
+    if (this.liveRoutes.has(route)) {
+      throw new Error(`Live route "${route}" is already registered`);
+    }
+    this.liveRoutes.set(route, listener);
+  }
+
+  public unregisterLiveRoute(route: string): void {
+    this.liveRoutes.delete(route);
+  }
+
+  public validateClientRoute(route: string): void {
+    this.validateRoute(route);
   }
 
   /**
@@ -396,6 +436,11 @@ export class ClientConnection extends ConnectionBase {
   private registerRouteMessageHandler(): void {
     this.registerHandler(ROUTE_MESSAGE, (_, msg) => {
       const routeMsg = msg as MsgRoute;
+      if (routeMsg.verb === 'LIVE') {
+        const listener = this.liveRoutes.get(routeMsg.route);
+        if (listener) listener(routeMsg.data as unknown as LiveServerEvent);
+        return new_MsgResponseOK(_, 'ok');
+      }
       const sub = this.subscribedRoutes[routeMsg.route];
       
       if (sub) {

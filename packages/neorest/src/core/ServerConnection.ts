@@ -143,6 +143,27 @@ export class ServerConnection extends ConnectionBase {
   }
 
   /**
+   * Send a targeted route message that is retained while this logical
+   * connection replaces its transport. Used for live-session signaling where
+   * dropping an event would leave WebRTC negotiation incomplete.
+   */
+  public sendToRouteAfterReconnect(
+    route: string,
+    verb: RouteVerb,
+    payload: Payload,
+    headers?: Record<string, string>,
+  ): void {
+    const message: MsgRoute = {
+      type: ROUTE_MESSAGE,
+      verb,
+      route,
+      data: payload,
+      headers,
+    };
+    this.postAndForgetAfterReconnect(message);
+  }
+
+  /**
    * Register handlers for route-related messages
    */
   private registerRouteHandlers(): void {

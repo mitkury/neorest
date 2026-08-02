@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { NodeRouter } from 'neorest/node';
 import { Client } from 'neorest';
+import { portManager } from './utils/portManager';
 
-async function startServerHttpOnly(port = 8102, received: any[] = []) {
+async function startServerHttpOnly(port: number, received: any[] = []) {
   const router = new NodeRouter({ port, disableWebSocket: true });
 
   router
@@ -22,7 +23,7 @@ async function startServerHttpOnly(port = 8102, received: any[] = []) {
 
 describe('auto transport falls back to HTTP long-poll when WS unavailable', () => {
   it('completes request/response and subscriptions via HTTP only', async () => {
-    const port = 8102;
+    const port = await portManager.getNextPort();
     const receivedOnServer: any[] = [];
     const server = await startServerHttpOnly(port, receivedOnServer);
     let client: Client | null = null;
@@ -64,8 +65,8 @@ describe('auto transport falls back to HTTP long-poll when WS unavailable', () =
       expect(broadcasts[0]).toEqual({ from: 'server', payload: { n: 1 } });
       expect(broadcasts[1]).toEqual({ from: 'server', payload: { n: 2 } });
     } finally {
-      try { (client as any)?.close?.(); } catch {}
-      await (server as any).close();
+      client?.close();
+      await server.close();
     }
   });
 });

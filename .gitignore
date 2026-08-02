@@ -35,3 +35,6 @@ Thumbs.db
 # Legacy code
 old_src/
 *.log
+
+# Generated live-media benchmark artifacts
+packages/benchmark/artifacts/

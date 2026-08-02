@@ -327,6 +327,27 @@ export abstract class ConnectionBase {
     }
   }
 
+  /**
+   * Send without an application response, retaining the message if the
+   * logical connection is temporarily between transports.
+   */
+  protected postAndForgetAfterReconnect(msg: MsgType): void {
+    const wrappedMsg = new_SendAndForgetMsgWrapper(msg);
+    if (!this.transport.isConnected()) {
+      this.messagesToSendAfterReconnect.push(wrappedMsg);
+      return;
+    }
+    try {
+      this.sendWrappedMsg(wrappedMsg);
+    } catch (error) {
+      if (!this.transport.isConnected()) {
+        this.messagesToSendAfterReconnect.push(wrappedMsg);
+      } else {
+        console.error('Error sending message', error);
+      }
+    }
+  }
+
   protected sendWrappedMsg(wrappedMsg: MsgWrapper): void {
     this.transport.send(wrappedMsg);
   }

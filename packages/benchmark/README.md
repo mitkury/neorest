@@ -2,6 +2,77 @@
 
 This comprehensive benchmark suite tests Neorest's performance across multiple load levels, from basic functionality to high-performance scenarios.
 
+## Live audio loopback
+
+The live-audio benchmark exercises a real server-terminated WebRTC session
+using the same `@roamhq/wrtc` runtime commonly used by Node applications. It
+generates a deterministic PCM WAV, plays it as paced tracks independently in
+both directions, and records what the client and server received. Keeping the
+two directions separate avoids hiding which media path introduced a
+degradation.
+The root command uses Node 22 for the media process because that is the newest
+runtime currently covered by the native WebRTC provider; this also makes the
+result independent of whichever newer Node version happens to be installed.
+
+From the repository root:
+
+```bash
+# Portable baseline: macOS, Linux, or Windows
+npm run test:live-audio
+
+# Repeat runs to get p50/p95 setup and latency measurements
+npm run test:live-audio -- --runs 5
+
+# Add application-level delay, jitter, and dropped audio frames without Docker
+npm run test:live-audio -- --profile degraded
+
+# Use a PCM 16-bit WAV; it is downmixed and resampled to 48 kHz as needed
+npm run test:live-audio -- --input /absolute/path/speech.wav
+```
+
+Each run writes `reference.wav`, `received-client-N.wav`,
+`received-server-N.wav`, raw WebRTC stats, per-run
+metrics, and `summary.json` under `packages/benchmark/artifacts/live-audio/`.
+The metrics include control and live setup time, data-channel RTT, approximate
+one-way audio latency in both directions, aligned signal correlation, RMS
+ratio, and dropout ratio. Because both peers live in the same benchmark
+process, their monotonic timestamps share a clock. Audio is encoded by WebRTC,
+so the returned WAV is intentionally not expected to be byte-identical to the
+source.
+
+### Packet-level network profiles
+
+Docker is optional. When it is available, the network runner applies Linux
+`tc netem` to the container loopback interface, affecting both Neorest
+WebSocket signaling and WebRTC packets:
+
+```bash
+# Defaults to the wifi profile
+npm run test:live-audio:network
+
+NETWORK_PROFILE=clean npm run test:live-audio:network
+NETWORK_PROFILE=mobile npm run test:live-audio:network -- --runs 3
+NETWORK_PROFILE=poor npm run test:live-audio:network
+```
+
+Profiles are deliberately small and understandable:
+
+| Profile | Delay | Jitter | Random loss | Rate |
+| --- | ---: | ---: | ---: | ---: |
+| `clean` | 0 ms | 0 ms | 0% | unlimited |
+| `wifi` | 15 ms | 5 ms | 0.2% | unlimited |
+| `mobile` | 40 ms | 15 ms | 1% | unlimited |
+| `poor` | 100 ms | 40 ms | 5%, 25% correlation | 512 kbit/s |
+
+The qdisc is applied to `lo` because the benchmark client and server run in
+the same isolated Linux network namespace. Docker Desktop provides that Linux
+VM on macOS and Windows. The container needs only the scoped `NET_ADMIN`
+capability; it does not modify the host network.
+
+Application-level impairment is useful for repeatable media-pipeline tests.
+The Docker profiles are the meaningful test for WebRTC congestion, packet
+loss, jitter buffering, and signaling behavior.
+
 ## Quick Start
 
 ```bash

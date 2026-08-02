@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { NodeRouter } from 'neorest/node';
 import { Client } from 'neorest';
 import { msg_ConnDataSet } from 'neorest/core';
@@ -14,7 +14,7 @@ async function makeServer(port?: number) {
       ctx.response = { ok: true };
     })
     .onValidateBroadcast('/secure/:topic', (conn) => {
-      return (conn as any).getHeader('auth') === 'good';
+      return conn.getHeader('auth') === 'good';
     });
 
   await router.listen();
@@ -26,36 +26,32 @@ describe('per-subscriber authorization with connection-scoped token', () => {
     const { router, port } = await makeServer();
     const a = new Client(`ws://localhost:${port}`, 'websocket');
     const b = new Client(`ws://localhost:${port}`, 'websocket');
-    await a.connect();
-    await b.connect();
+    try {
+      await a.connect();
+      await b.connect();
 
-    // Set connection-scoped token for client A only
-    const setA: any = await new Promise((resolve) => {
-      ((a as any).conn).post(msg_ConnDataSet('auth', 'good'), (r: any) => resolve(r));
-    });
-    expect(setA.status || 200).toBe(200);
+      const setA = await new Promise<{ status?: number }>((resolve) => {
+        const connection = (a as unknown as {
+          conn: { post(message: unknown, callback: (response: { status?: number }) => void): void };
+        }).conn;
+        connection.post(msg_ConnDataSet('auth', 'good'), resolve);
+      });
+      expect(setA.status ?? 200).toBe(200);
 
-    const recvA: any[] = [];
-    const recvB: any[] = [];
-    await a.on('/secure/news', (evt) => recvA.push(evt.data));
-    await b.on('/secure/news', (evt) => recvB.push(evt.data));
+      const recvA: unknown[] = [];
+      const recvB: unknown[] = [];
+      await a.subscribe('/secure/news', (event) => recvA.push(event.data));
+      await b.subscribe('/secure/news', (event) => recvB.push(event.data));
 
-    const res = await a.post('/send/news', { x: 1 });
-    expect(res.error).toBeUndefined();
-
-    const start = Date.now();
-    while (recvA.length < 1 && Date.now() - start < 1500) {
-      await new Promise(r => setTimeout(r, 20));
+      expect((await a.post('/send/news', { x: 1 })).error).toBeUndefined();
+      await vi.waitFor(() => {
+        expect(recvA).toEqual([{ ok: true, topic: 'news' }]);
+      });
+      expect(recvB).toEqual([]);
+    } finally {
+      a.close();
+      b.close();
+      await router.close();
     }
-
-    // A should receive, B should not
-    expect(recvA.length).toBe(1);
-    expect(recvA[0]).toEqual({ ok: true, topic: 'news' });
-    expect(recvB.length).toBe(0);
-
-    (a as any).close?.();
-    (b as any).close?.();
-    await (router as any).close();
   });
 });
-

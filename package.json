@@ -10,7 +10,9 @@
   ],
   "scripts": {
     "build": "npm run build -w neorest",
-    "test": "npm run build && npm run test -w @neorest/tests"
+    "test": "npm run build && npm run test -w @neorest/tests",
+    "test:live-audio": "npm run build && npx --yes node@22 packages/benchmark/live-audio.js",
+    "test:live-audio:network": "docker compose -f packages/benchmark/compose.live-audio.yml run --rm --build live-audio"
   },
   "overrides": {
     "brace-expansion": "^5.0.8",

@@ -9,9 +9,11 @@
     "connection": "node benchmark.js connection",
     "throughput": "node benchmark.js throughput",
     "reconnection": "node benchmark.js reconnection",
-    "stress": "node benchmark.js stress"
+    "stress": "node benchmark.js stress",
+    "live:audio": "node live-audio.js"
   },
   "dependencies": {
+    "@roamhq/wrtc": "^0.10.0",
     "neorest": "file:../neorest",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3"

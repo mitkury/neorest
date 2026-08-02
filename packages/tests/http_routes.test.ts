@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
+import { Client } from 'neorest';
 import { NodeRouter } from 'neorest/node';
+import { portManager } from './utils/portManager';
 
-async function startServer(port = 8200) {
+async function startServer(port: number) {
   const router = new NodeRouter({ port });
   router
     .onGet('/ping', async (ctx) => { ctx.response = 'pong'; })
@@ -14,7 +16,7 @@ async function startServer(port = 8200) {
 
 describe('plain HTTP routes', () => {
   it('serves GET/POST/DELETE over regular HTTP with JSON', async () => {
-    const port = 8200;
+    const port = await portManager.getNextPort();
     const server = await startServer(port);
     try {
       // GET /ping
@@ -47,7 +49,28 @@ describe('plain HTTP routes', () => {
       const j4 = await r4.json();
       expect(j4.clientId).toBeDefined();
     } finally {
-      await (server as any).close();
+      await server.close();
+    }
+  });
+
+  it('can disable plain routes without disabling protocol access to those routes', async () => {
+    const port = await portManager.getNextPort();
+    const server = new NodeRouter({ port, disableHttpRoutes: true, disableWebSocket: true });
+    server.onGet('/ping', (context) => {
+      context.response = 'pong';
+    });
+    await server.start();
+
+    const client = new Client(`http://localhost:${port}`, 'http');
+    try {
+      const plainResponse = await fetch(`http://localhost:${port}/ping`);
+      expect(plainResponse.status).toBe(404);
+
+      await client.connect();
+      expect((await client.get('/ping')).data).toBe('pong');
+    } finally {
+      client.close();
+      await server.close();
     }
   });
 });

@@ -67,8 +67,8 @@ describe('neorest client ↔ node server (auto transport: http first, ws upgrade
       expect(broadcasts[0]).toEqual({ from: 'server', payload: { n: 1 } });
       expect(broadcasts[1]).toEqual({ from: 'server', payload: { n: 2 } });
     } finally {
-      try { (client as any)?.close?.(); } catch {}
-      await (server as any).close();
+      client?.close();
+      await server.close();
     }
   });
 });

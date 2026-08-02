@@ -17,11 +17,14 @@ import type {
   SubscriptionAuthorizationResult,
 } from './types';
 import type { CommunicationTransport } from './CommunicationTransport';
+import type { LiveRoomOptions, LiveServerOptions } from './live';
 
 // Re-export types for backward compatibility
 export type { RouterOptions, ServerAdapter, RequestContext };
 import { newConnectionSecret } from './utils/connectionSecret';
 import { ServerConnection } from './ServerConnection';
+import { LiveRoomManager } from './LiveRoomManager';
+import { LiveServerManager } from './LiveServerManager';
 import { 
   Key,
   match,
@@ -70,11 +73,15 @@ export class Router {
   private outRoutes: OutRouteLayer[] = [];
 
   private subscriptionAuthorizationRoutes: SubscriptionAuthorizationLayer[] = [];
+
+  private readonly liveRooms: LiveRoomManager;
+
+  private readonly liveServers: LiveServerManager;
   
   /**
    * Router options
    */
-  protected options: Required<RouterOptions>;
+  protected options: Required<Omit<RouterOptions, 'createLivePeerConnection'>>;
 
   /**
    * Server adapter for platform-specific implementation
@@ -86,11 +93,14 @@ export class Router {
    * @param options - Router options
    */
   constructor(options?: RouterOptions) {
+    this.liveRooms = new LiveRoomManager();
+    this.liveServers = new LiveServerManager(options?.createLivePeerConnection);
     this.options = {
       logLevel: options?.logLevel ?? 'info',
       validateRoutes: options?.validateRoutes ?? true,
       maxMessagesPerSecond: options?.maxMessagesPerSecond ?? 100,
       maxConnections: options?.maxConnections ?? 10_000,
+      connectionGracePeriodMs: options?.connectionGracePeriodMs ?? 1_000,
     };
     this.validateLimits();
 
@@ -134,6 +144,8 @@ export class Router {
    * @returns A promise that resolves when the server is stopped
    */
   async close(): Promise<void> {
+    this.liveServers.close();
+    this.liveRooms.close();
     if (this.serverAdapter) {
       await this.serverAdapter.stop();
     }
@@ -186,6 +198,27 @@ export class Router {
     handler: (ctx: RequestContext) => void | Promise<void>,
   ): this {
     this.setInRoute(route, "DELETE", handler);
+    return this;
+  }
+
+  /**
+   * Register a client-to-server WebRTC session on a normal Neorest route.
+   * The server peer connection is created by `createLivePeerConnection`.
+   */
+  onLive(route: string, options: LiveServerOptions = {}): this {
+    const definition = this.liveServers.register(route, options);
+    this.setInRoute(route, 'LIVE', (context) => {
+      return this.liveServers.handle(definition, context);
+    });
+    return this;
+  }
+
+  /** Register a relayed one-to-one client peer room. */
+  onLiveRoom(route: string, options: LiveRoomOptions = {}): this {
+    const definition = this.liveRooms.register(route, options);
+    this.setInRoute(route, 'LIVE', (context) => {
+      return this.liveRooms.handle(definition, context);
+    });
     return this;
   }
 
@@ -758,7 +791,12 @@ export class Router {
       delete this.pendingRemovals[connSecret];
     }
 
-    // Clean up subscriptions and remove connection
+    // Clean up live rooms and subscriptions before removing the connection.
+    const connection = this.connections[connSecret];
+    if (connection) {
+      this.liveServers.removeConnection(connection);
+      this.liveRooms.removeConnection(connection);
+    }
     this.cleanupConnectionSubscriptions(connSecret);
     delete this.connections[connSecret];
   }
@@ -766,9 +804,8 @@ export class Router {
   /**
    * Schedule a connection for removal with a grace period for reconnection
    * @param connSecret - The connection secret
-   * @param gracePeriodMs - Grace period in milliseconds (default: 1000ms)
    */
-  private scheduleConnectionRemoval(connSecret: ConnectionSecret, gracePeriodMs: number = 1000): void {
+  private scheduleConnectionRemoval(connSecret: ConnectionSecret): void {
     // Clear any existing pending removal
     if (this.pendingRemovals[connSecret]) {
       clearTimeout(this.pendingRemovals[connSecret]);
@@ -778,7 +815,7 @@ export class Router {
     this.pendingRemovals[connSecret] = setTimeout(() => {
       this.removeConnection(connSecret);
       delete this.pendingRemovals[connSecret];
-    }, gracePeriodMs);
+    }, this.options.connectionGracePeriodMs);
   }
 
   /**
@@ -876,6 +913,12 @@ export class Router {
       if (value !== false && (!Number.isInteger(value) || value <= 0)) {
         throw new Error(`${name} must be a positive integer or false`);
       }
+    }
+    if (
+      !Number.isInteger(this.options.connectionGracePeriodMs)
+      || this.options.connectionGracePeriodMs < 0
+    ) {
+      throw new Error('connectionGracePeriodMs must be a non-negative integer');
     }
   }
 }

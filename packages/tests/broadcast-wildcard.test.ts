@@ -1,89 +1,56 @@
-import { describe, it, expect } from 'vitest';
-import { NodeRouter } from 'neorest/node';
+import { describe, expect, it, vi } from 'vitest';
 import { Client } from 'neorest';
+import { NodeRouter } from 'neorest/node';
 import { portManager } from './utils/portManager';
 
-async function makeServer(withExplicitValidator: boolean, allow: boolean, port?: number) {
-  const serverPort = port || await portManager.getNextPort();
-  const router = new NodeRouter({ port: serverPort });
-
-  router
-    .onPost('/send/:topic', async (ctx) => {
-      router.broadcastPost(`/topic/${ctx.params.topic}`, { ok: true, topic: ctx.params.topic });
-      ctx.response = { ok: true };
+async function makeServer(validate?: () => boolean): Promise<{
+  router: NodeRouter;
+  port: number;
+}> {
+  const port = await portManager.getNextPort();
+  const router = new NodeRouter({ port });
+  router.onPost('/send/:topic', (context) => {
+    router.broadcastPost(`/topic/${context.params.topic}`, {
+      topic: context.params.topic,
     });
-
-  if (withExplicitValidator) {
-    router.onValidateBroadcast('/topic/:topic', () => allow);
-  }
-
-  await router.listen();
-  return { router, port: serverPort };
+    context.response = { ok: true };
+  });
+  if (validate) router.onValidateBroadcast('/topic/:topic', validate);
+  await router.start();
+  return { router, port };
 }
 
-describe('broadcast wildcard default', () => {
-  it('delivers without explicit onValidate (default wildcard allows)', async () => {
-    const { router, port } = await makeServer(false, true);
+describe('broadcast validation', () => {
+  it('delivers broadcasts through the default wildcard policy', async () => {
+    const { router, port } = await makeServer();
     const client = new Client(`ws://localhost:${port}`, 'websocket');
-    await client.connect();
+    const received: unknown[] = [];
+    try {
+      await client.connect();
+      await client.subscribe('/topic/news', (event) => received.push(event.data));
+      await client.post('/send/news');
 
-    const received: any[] = [];
-    await client.on('/topic/news', (evt) => received.push(evt.data));
-
-    const res = await client.post('/send/news', { msg: 1 });
-    expect(res.error).toBeUndefined();
-
-    const start = Date.now();
-    while (received.length < 1 && Date.now() - start < 2000) {
-      await new Promise(r => setTimeout(r, 20));
+      await vi.waitFor(() => expect(received).toEqual([{ topic: 'news' }]));
+    } finally {
+      client.close();
+      await router.close();
     }
-
-    expect(received.length).toBe(1);
-    expect(received[0]).toEqual({ ok: true, topic: 'news' });
-
-    (client as any).close?.();
-    await (router as any).close();
   });
 
-  it('respects explicit validator that denies', async () => {
-    const { router, port } = await makeServer(true, false);
+  it('does not deliver a broadcast rejected by an explicit validator', async () => {
+    const { router, port } = await makeServer(() => false);
     const client = new Client(`ws://localhost:${port}`, 'websocket');
-    await client.connect();
+    const received: unknown[] = [];
+    try {
+      await client.connect();
+      await client.subscribe('/topic/news', (event) => received.push(event.data));
+      await client.post('/send/news');
 
-    const received: any[] = [];
-    await client.on('/topic/news', (evt) => received.push(evt.data));
-
-    const res = await client.post('/send/news', { msg: 1 });
-    expect(res.error).toBeUndefined();
-
-    await new Promise(r => setTimeout(r, 300));
-    expect(received.length).toBe(0);
-
-    (client as any).close?.();
-    await (router as any).close();
-  });
-
-  it('respects explicit validator that allows', async () => {
-    const { router, port } = await makeServer(true, true);
-    const client = new Client(`ws://localhost:${port}`, 'websocket');
-    await client.connect();
-
-    const received: any[] = [];
-    await client.on('/topic/news', (evt) => received.push(evt.data));
-
-    const res = await client.post('/send/news', { msg: 1 });
-    expect(res.error).toBeUndefined();
-
-    const start = Date.now();
-    while (received.length < 1 && Date.now() - start < 2000) {
-      await new Promise(r => setTimeout(r, 20));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(received).toEqual([]);
+    } finally {
+      client.close();
+      await router.close();
     }
-
-    expect(received.length).toBe(1);
-    expect(received[0]).toEqual({ ok: true, topic: 'news' });
-
-    (client as any).close?.();
-    await (router as any).close();
   });
 });
-

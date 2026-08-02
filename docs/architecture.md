@@ -18,6 +18,11 @@ Inside `packages/neorest/src`:
 - `transports/`: client transports for WebTransport, WebSocket, HTTP
   long-polling, and adaptive auto-upgrade
 - `Client.ts` and `ClientConnection.ts`: public client API and client-side connection state
+- `LiveSession.ts`: browser WebRTC lifecycle, media tracks, data channels, and
+  route-based signaling
+- `core/LiveServerManager.ts`: server-terminated WebRTC negotiation and
+  lifecycle around an injected Node peer-connection implementation
+- `core/LiveRoomManager.ts`: optional signaling relay for two client peers
 
 ### Core model
 
@@ -38,6 +43,7 @@ The transport layer moves `MsgWrapper` envelopes containing typed messages:
 - metadata: `DATA_SET`
 - liveness: `PING`
 - replies: `RESPONSE`
+- live-session control: ordinary route envelopes using the `LIVE` verb
 
 User-facing request methods return `RouteResponse<T>`. Subscription callbacks receive `BroadcastEvent<T>`.
 
@@ -82,6 +88,9 @@ The test suite currently covers:
 - WebTransport framing, bootstrap tickets, immutable identity, and a real
   HTTP/3 route flow
 - path conflict resolution and duplicate-subscription prevention
+- server-terminated live-route authorization, negotiation, ICE, and teardown
+- explicit one-to-one peer-room signaling and capacity
+- transport replacement without rebuilding healthy WebRTC sessions
 
 ### Minimal usage
 

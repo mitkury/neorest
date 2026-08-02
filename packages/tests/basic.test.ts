@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { NodeRouter } from 'neorest/node';
 import { Client } from 'neorest';
+import { portManager } from './utils/portManager';
 
-async function startServer(port = 8099) {
+async function startServer(port: number) {
   const router = new NodeRouter({ port });
 
   router
@@ -15,7 +16,7 @@ async function startServer(port = 8099) {
 
 describe('neorest client ↔ node server (http)', () => {
   it('handles GET /ping and POST /echo', async () => {
-    const port = 8099;
+    const port = await portManager.getNextPort();
     const server = await startServer(port);
     let client: Client | null = null;
 
@@ -31,8 +32,8 @@ describe('neorest client ↔ node server (http)', () => {
       const echo = await client.post<typeof payload>('/echo', payload);
       expect(echo.data.hello).toBe('world');
     } finally {
-      try { (client as any)?.close?.(); } catch {}
-      await (server as any).close();
+      client?.close();
+      await server.close();
     }
   });
 });
