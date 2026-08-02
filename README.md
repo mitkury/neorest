@@ -15,6 +15,9 @@ Neorest lets you keep one route model for request/response and live updates:
 npm install neorest
 ```
 
+New to Neorest? Start with the [simple, copy-paste examples](docs/examples.md)
+or run the [browser playgrounds](packages/playground).
+
 The Node server runtime requires Node.js 20 or newer. WebTransport server
 support additionally requires the optional HTTP/3 provider:
 

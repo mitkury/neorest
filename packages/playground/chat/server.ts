@@ -1,44 +1,28 @@
+import { randomUUID } from 'node:crypto';
 import { NodeRouter } from 'neorest/node';
 
-// In-memory chat state
-type ChatMessage = { id: string; text: string; timestamp: number };
-const messages: ChatMessage[] = [];
+type Message = { id: string; text: string };
 
-// Create chat server (separate port to avoid conflicts with other playgrounds)
+const messages: Message[] = [];
 const router = new NodeRouter({ port: 3002 });
 
-// GET /  => return all messages
-router.onGet('/', (ctx) => {
-  ctx.response = { messages };
+router.onGet('/messages', (context) => {
+  context.response = messages;
 });
 
-// POST / => create a new message and broadcast it
-router.onPost('/', (ctx) => {
-  console.log('POST /', ctx.data);
-  const data = ctx.data;
-  const text = data && typeof data === 'object' && !Array.isArray(data)
-    && 'text' in data && typeof data.text === 'string'
-    ? data.text
-    : '';
-  const trimmed = text.trim();
-  if (!trimmed) {
-    ctx.statusCode = 400;
-    ctx.response = { error: 'text is required' };
+router.onPost('/messages', (context) => {
+  const text = String((context.data as { text?: unknown })?.text ?? '').trim();
+
+  if (!text) {
+    context.statusCode = 400;
+    context.error = 'text is required';
     return;
   }
-  const msg: ChatMessage = { id: crypto.randomUUID(), text: trimmed, timestamp: Date.now() };
-  messages.push(msg);
-  ctx.response = msg;
-  // broadcast to subscribers of '/'
-  router.broadcastPost('/', msg, ctx.sender);
+
+  const message = { id: randomUUID(), text };
+  messages.push(message);
+  context.response = message;
+  router.broadcastPost('/messages', message, context.sender);
 });
 
-// Allow broadcast delivery to the single room '/'
-router.onValidateBroadcast('/', () => true);
-
-// Start the server
-console.log('💬 Chat server listening on http://localhost:3002');
-console.log('🌐 HTTP: GET / -> { messages }, POST / -> message');
-console.log('📡 SUBSCRIBE to / for real-time new messages');
-
-await router.listen();
+await router.start();
