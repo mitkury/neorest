@@ -1,0 +1,121 @@
+{
+  "name": "neorest",
+  "version": "0.1.0",
+  "description": "REST-shaped realtime APIs over WebTransport, WebSocket, and HTTP fallback",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "browser": {
+        "import": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.browser.js"
+        },
+        "require": {
+          "types": "./dist/index.d.cts",
+          "default": "./dist/index.browser.cjs"
+        },
+        "default": "./dist/index.browser.js"
+      },
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      },
+      "default": "./dist/index.mjs"
+    },
+    "./node": {
+      "import": {
+        "types": "./dist/node.d.ts",
+        "default": "./dist/node.mjs"
+      },
+      "require": {
+        "types": "./dist/node.d.cts",
+        "default": "./dist/node.cjs"
+      }
+    },
+    "./browser": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.browser.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.browser.cjs"
+      }
+    },
+    "./core": {
+      "import": {
+        "types": "./dist/core.d.ts",
+        "default": "./dist/core.mjs"
+      },
+      "require": {
+        "types": "./dist/core.d.cts",
+        "default": "./dist/core.cjs"
+      }
+    }
+  },
+  "scripts": {
+    "prebuild": "rimraf dist tsconfig.tsbuildinfo",
+    "build": "tsup",
+    "prepack": "npm run build",
+    "clean": "rimraf dist tsconfig.tsbuildinfo"
+  },
+  "author": "Dmitry Kury (https://dkury.com)",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "ws": "^8.21.1"
+  },
+  "peerDependencies": {
+    "@fails-components/webtransport": "^1.6.7",
+    "@fails-components/webtransport-transport-http3-quiche": "^1.6.7"
+  },
+  "peerDependenciesMeta": {
+    "@fails-components/webtransport": {
+      "optional": true
+    },
+    "@fails-components/webtransport-transport-http3-quiche": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@fails-components/webtransport": "^1.6.7",
+    "@fails-components/webtransport-transport-http3-quiche": "^1.6.7",
+    "typescript": "^5.0.0",
+    "rimraf": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "@types/ws": "^8.5.10"
+  },
+  "keywords": [
+    "REST",
+    "WebSockets",
+    "WebTransport",
+    "API",
+    "Real-time",
+    "Subscriptions"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mitkury/neorest.git",
+    "directory": "packages/neorest"
+  },
+  "bugs": {
+    "url": "https://github.com/mitkury/neorest/issues"
+  },
+  "homepage": "https://github.com/mitkury/neorest#readme"
+}

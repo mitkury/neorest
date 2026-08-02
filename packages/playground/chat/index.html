@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neorest Chat</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+        }
+        .section h2 {
+            margin-top: 0;
+            color: #555;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin: 5px 0;
+            box-sizing: border-box;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            padding: 15px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .counter {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>💬 Neorest Chat</h1>
+        
+        <!-- Chat -->
+        <div class="section">
+            <h2>Room</h2>
+            <div id="chat" class="log" style="height: 300px"></div>
+            <div style="display:flex; gap: 8px; margin-top: 8px">
+                <input id="input" placeholder="Type a message..." />
+                <button onclick="sendMessage()">Send</button>
+            </div>
+            <div style="margin-top:10px">
+                <span id="status" class="status disconnected">Disconnected</span>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import Neorest; Vite will pick the browser export
+        import { Client } from 'neorest';
+
+        let client = null;
+        let isConnected = false;
+        let messages = [];
+
+        function updateStatus() {
+            const el = document.getElementById('status');
+            el.className = `status ${isConnected ? 'connected' : 'disconnected'}`;
+            el.textContent = isConnected ? 'Connected' : 'Disconnected';
+        }
+
+        function renderMessages() {
+            const chat = document.getElementById('chat');
+            chat.innerHTML = messages
+                .sort((a,b) => a.timestamp - b.timestamp)
+                .map(m => `<div>[${new Date(m.timestamp).toLocaleTimeString()}] ${m.text}</div>`) 
+                .join('');
+            chat.scrollTop = chat.scrollHeight;
+        }
+
+        async function boot() {
+            // 1) Connect to WebSocket
+            client = new Client('ws://localhost:3002', 'websocket');
+            await client.connect();
+            isConnected = true;
+            updateStatus();
+            try {
+                const transport = client.conn.getStrategyType();
+                console.log(`[chat] connected using transport: ${transport}`);
+                const el = document.getElementById('status');
+                el.textContent = `Connected (${transport})`;
+            } catch {}
+
+            // 2) Get current messages using the client
+            const response = await client.get('/');
+            messages = response.data.messages || [];
+            renderMessages();
+
+            // 3) Subscribe to real-time updates
+            await client.on('/', (evt) => {
+                console.log('on message /', evt.data);
+                messages.push(evt.data);
+                renderMessages();
+            });
+        }
+
+        window.sendMessage = async function() {
+            const input = document.getElementById('input');
+            const text = input.value.trim();
+            if (!text) return;
+            await client.post('/', { text });
+            input.value = '';
+        }
+
+        boot().catch(err => {
+            console.error(err);
+        });
+    </script>
+</body>
+</html>
