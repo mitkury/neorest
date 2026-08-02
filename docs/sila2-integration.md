@@ -170,7 +170,7 @@ candidate-polling endpoints for Neorest clients. Applications can retain legacy
 HTTP signaling temporarily for native clients that do not yet implement the
 Neorest live wire protocol.
 
-Production voice requirements learned from WorldAgents:
+Production voice requirements:
 
 - STUN plus TURN, including TURN/TCP and TURN/TLS on port 443
 - authenticated route authorization and bounded signaling attempts
@@ -209,7 +209,7 @@ replace WebRTC audio tracks or TURN.
    events.
 4. Add the SvelteKit client and snapshot refresh on connection restoration.
 5. Stabilize append-only thread events and idempotent message creation.
-6. Add voice sessions with the WorldAgents WebRTC contract as a separate
-   realtime module.
+6. Add voice sessions with the live WebRTC contract as a separate realtime
+   module.
 7. Enable WebTransport after the deployment path accepts HTTP/3/UDP, retaining
    WebSocket and held HTTP in the client preference list.

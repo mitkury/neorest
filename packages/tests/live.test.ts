@@ -283,7 +283,7 @@ describe('live routes', () => {
 
     const live = await client.live('/agents/guide/realtime', {
       receive: { audio: true },
-      data: { 'worldagents-events': { ordered: true } },
+      data: { 'agent-events': { ordered: true } },
       negotiationTimeoutMs: 1_000,
     });
     await waitFor(() => live.state === 'connected');
