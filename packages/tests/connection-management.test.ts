@@ -85,3 +85,37 @@ describe('connection lifecycle', () => {
     }
   });
 });
+
+describe('subscription recovery', () => {
+  it('does not report recovery when subscription authorization fails, and bounds retries', async () => {
+    const port = await portManager.getNextPort();
+    const server = new NodeRouter({ port });
+    let allowed = true;
+    let authorizations = 0;
+    server.onAuthorizeSubscription('/private', () => {
+      authorizations++;
+      return allowed;
+    });
+    await server.start();
+    const client = new Client(`ws://localhost:${port}`, 'websocket', {
+      timeout: 200,
+      reconnect: { initialDelay: 10, maxDelay: 10, maxAttempts: 2 },
+    });
+    const states: boolean[] = [];
+    client.onConnectionChange((state) => states.push(state));
+    try {
+      await client.connect();
+      await client.subscribe('/private', () => {});
+      allowed = false;
+      (client as unknown as WebSocketBackedClient).conn.transport.socket.close();
+      await vi.waitFor(() => expect(authorizations).toBe(3));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(authorizations).toBe(3);
+      expect(client.isConnected()).toBe(false);
+      expect(states).toEqual([true, false]);
+    } finally {
+      client.close();
+      await server.close();
+    }
+  });
+});

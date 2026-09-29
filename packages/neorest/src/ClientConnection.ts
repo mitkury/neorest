@@ -408,11 +408,12 @@ export class ClientConnection extends ConnectionBase {
     const originalOnOpen = this.onOpen;
     this.onOpen = () => {
       originalOnOpen();
-      this.isFullyConnected = true;
+      if (this.isClosing) return;
       this.clearReconnectTimer();
-      this.reconnectAttempts = 0;
-      this.onClientConnect();
       if (!this.isReconnecting) {
+        this.isFullyConnected = true;
+        this.reconnectAttempts = 0;
+        this.onClientConnect();
         this.emitConnectionChange(true);
       }
     };
@@ -420,7 +421,7 @@ export class ClientConnection extends ConnectionBase {
     const originalOnClose = this.onClose;
     this.onClose = () => {
       originalOnClose();
-      if (this.isClosing || this.isReplacingTransport || this.transport.isConnected()) {
+      if (this.isClosing || this.isReplacingTransport || this.isReconnecting || this.transport.isConnected()) {
         return;
       }
 
@@ -494,13 +495,24 @@ export class ClientConnection extends ConnectionBase {
       this.applyConnectionSecret(transport);
 
       await this.replaceTransport(transport);
-      
-      // After reconnection, resubscribe to routes
+      if (this.isClosing) return;
+
+      // Recovery is complete only after every subscription is acknowledged.
       await this.resubscribeToRoutes();
+      if (this.isClosing) return;
+      if (!transport.isConnected()) throw new Error('Connection closed during recovery');
       this.isReconnecting = false;
+      this.isFullyConnected = true;
+      this.reconnectAttempts = 0;
+      this.onClientConnect();
       this.emitConnectionChange(true);
     } catch (error) {
+      // Drop a partially restored connection before retrying. Keep the
+      // reconnect guard set while disconnecting to avoid a second retry timer.
+      this.transport.disconnect();
+      this.isFullyConnected = false;
       this.isReconnecting = false;
+      if (this.isClosing) return;
       console.error("Reconnection failed:", error);
       
       this.reconnectAttempts++;
@@ -522,6 +534,8 @@ export class ClientConnection extends ConnectionBase {
       );
       
       this.reconnectTimer = setTimeout(() => void this.reconnect(), nextDelay);
+    } finally {
+      this.isReconnecting = false;
     }
   }
 
@@ -530,12 +544,13 @@ export class ClientConnection extends ConnectionBase {
    */
   private async resubscribeToRoutes(): Promise<void> {
     await Promise.all(Object.keys(this.subscribedRoutes).map((route) => {
-      return new Promise<void>((resolve) => {
+      return new Promise<void>((resolve, reject) => {
         this.post(new_MsgSubscribeToRoute(route), (response) => {
           if (response.error) {
-            console.error(`Failed to resubscribe to route "${route}"`, response.error);
+            reject(new Error(`Failed to resubscribe to route "${route}": ${response.error}`));
+          } else {
+            resolve();
           }
-          resolve();
         }, this.requestTimeoutMs ?? 5000);
       });
     }));

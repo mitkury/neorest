@@ -70,6 +70,10 @@ Client reconnect is best-effort and bounded:
 - transport replacement should not trigger a second reconnect loop
 
 When reconnect succeeds, the client keeps using the same logical session and restores its subscriptions.
+`isConnected()` stays false during recovery, and `onConnectionChange(true)` is
+emitted only after all subscription acknowledgments succeed. A rejected or
+timed-out subscription makes the recovery attempt fail. Partial recovery does
+not reset the retry budget; exhaustion leaves the client disconnected.
 
 Requests that were queued before a transport became available are sent after
 connection. Requests already handed to a transport are not automatically
@@ -85,6 +89,12 @@ HTTP long-polling has an extra transport-local `clientId` used only for the poll
 - `POST /.neorest?clientId=...` sends a protocol message
 - `GET /.neorest?poll=true&clientId=...` holds until a queued message arrives
   or the configured long-poll timeout expires
+
+Concurrent HTTP connect calls share one pending handshake. Disconnect aborts
+in-flight handshakes, sends, and polls. Responses that arrive after cancellation
+are discarded so they cannot reopen a closed client, deliver stale events, or
+interrupt a replacement connection. Cancelling a send does not undo a command
+that the server has already received.
 
 `clientId` identifies the HTTP polling transport. The connection `secret` identifies the logical Neorest session.
 The short-lived, single-use `upgradeToken` authorizes the automatic replacement

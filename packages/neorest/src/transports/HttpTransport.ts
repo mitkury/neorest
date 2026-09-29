@@ -10,6 +10,8 @@ import {
  */
 export class HttpTransport implements ClientTransport {
   private connected = false;
+  private session: AbortController | null = null;
+  private connecting: Promise<void> | null = null;
   private messageCallback: ((message: MsgWrapper) => void) | null = null;
   private closeCallback: (() => void) | null = null;
   private openCallback: (() => void) | null = null;
@@ -42,28 +44,38 @@ export class HttpTransport implements ClientTransport {
   /**
    * Connect to the server
    */
-  async connect(): Promise<void> {
-    if (this.connected) {
-      return;
-    }
+  connect(): Promise<void> {
+    if (this.connected) return Promise.resolve();
+    if (this.connecting) return this.connecting;
 
+    const session = new AbortController();
+    this.session = session;
     this.connectionInfo.status = 'connecting';
+    const connecting = this.openSession(session).finally(() => {
+      if (this.connecting === connecting) this.connecting = null;
+    });
+    this.connecting = connecting;
+    return connecting;
+  }
+
+  private async openSession(session: AbortController): Promise<void> {
     try {
-      const url = this.createTransportUrl();
-      const res = await fetch(url.toString(), {
+      const res = await fetch(this.createTransportUrl().toString(), {
         method: 'GET',
         headers: this.createHeaders(),
         credentials: 'same-origin',
+        signal: session.signal,
       });
+      if (!this.isCurrentSession(session)) throw this.closedError();
       if (!res.ok) {
         throw new Error(`HTTP transport handshake failed: ${res.status}`);
       }
-
       const data = await res.json() as {
         clientId?: unknown;
         upgradeToken?: unknown;
         webTransportUrl?: unknown;
       };
+      if (!this.isCurrentSession(session)) throw this.closedError();
       if (typeof data?.clientId !== 'string' || !data.clientId) {
         throw new Error('HTTP transport handshake returned an invalid clientId');
       }
@@ -74,17 +86,18 @@ export class HttpTransport implements ClientTransport {
         : null;
       this.connectionInfo.id = this.clientId;
     } catch (error) {
-      this.connectionInfo.status = 'disconnected';
+      if (this.isCurrentSession(session)) {
+        this.connectionInfo.status = 'disconnected';
+        this.session = null;
+        session.abort();
+      }
       throw error;
     }
 
     this.connected = true;
     this.pollFailures = 0;
     this.connectionInfo.status = 'connected';
-
-    if (this.openCallback) {
-      this.openCallback();
-    }
+    this.openCallback?.();
     this.schedulePoll(0);
   }
 
@@ -94,6 +107,13 @@ export class HttpTransport implements ClientTransport {
   disconnect(): void {
     const wasConnected = this.connected;
     this.connected = false;
+    this.session?.abort();
+    this.session = null;
+    this.connecting = null;
+    this.clientId = null;
+    this.upgradeToken = null;
+    this.webTransportUrl = null;
+    this.pendingSends = 0;
     this.connectionInfo.status = 'disconnected';
     
     if (this.pollTimer) {
@@ -113,7 +133,8 @@ export class HttpTransport implements ClientTransport {
    * @param message - The message to send
    */
   send(message: MsgWrapper): void {
-    if (!this.connected) {
+    const session = this.session;
+    if (!this.connected || !session) {
       throw new Error('HTTP connection is not established');
     }
 
@@ -134,8 +155,10 @@ export class HttpTransport implements ClientTransport {
           headers,
           body: JSON.stringify(message),
           credentials: 'same-origin',
+          signal: session.signal,
         });
 
+        if (!this.isCurrentSession(session)) return;
         if (!response.ok) {
           throw new Error(`HTTP error: ${response.status}`);
         }
@@ -143,22 +166,14 @@ export class HttpTransport implements ClientTransport {
         // Handle immediate response message if present
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
-          const responseData = await response.json();
-          if (responseData && this.messageCallback) {
-            if (Array.isArray(responseData)) {
-              for (const msg of responseData) {
-                this.messageCallback(msg as MsgWrapper);
-              }
-            } else {
-              this.messageCallback(responseData as MsgWrapper);
-            }
-          }
+          this.dispatchPayload(await response.json(), session);
         }
       } catch (error) {
+        if (!this.isCurrentSession(session)) return;
         console.error('Error sending message:', error);
         this.disconnect();
       } finally {
-        this.pendingSends--;
+        if (this.isCurrentSession(session)) this.pendingSends--;
       }
     };
 
@@ -251,33 +266,36 @@ export class HttpTransport implements ClientTransport {
   }
 
   private async pollForMessages(): Promise<void> {
-    if (!this.connected || !this.clientId) {
+    const session = this.session;
+    if (!this.connected || !this.clientId || !session) {
       return;
     }
 
-    this.pollController = new AbortController();
+    const controller = new AbortController();
+    this.pollController = controller;
     try {
       const pollUrl = this.createTransportUrl();
       pollUrl.searchParams.set('poll', 'true');
       pollUrl.searchParams.set('clientId', this.clientId);
       const response = await fetch(pollUrl.toString(), {
         headers: this.createHeaders(),
-        signal: this.pollController.signal,
+        signal: controller.signal,
         credentials: 'same-origin',
       });
 
+      if (!this.isCurrentSession(session)) return;
       if (response.status !== 204) {
         if (!response.ok) {
           throw new Error(`HTTP error: ${response.status}`);
         }
         const contentType = response.headers.get('content-type');
         if (contentType?.includes('application/json')) {
-          this.dispatchPayload(await response.json());
+          this.dispatchPayload(await response.json(), session);
         }
       }
-      this.pollFailures = 0;
+      if (this.isCurrentSession(session)) this.pollFailures = 0;
     } catch (error) {
-      if (!this.connected || (error instanceof Error && error.name === 'AbortError')) {
+      if (!this.isCurrentSession(session) || controller.signal.aborted) {
         return;
       }
       console.error('Error polling for messages:', error);
@@ -288,9 +306,19 @@ export class HttpTransport implements ClientTransport {
         return;
       }
     } finally {
-      this.pollController = null;
-      this.schedulePoll();
+      if (this.isCurrentSession(session) && this.pollController === controller) {
+        this.pollController = null;
+        this.schedulePoll();
+      }
     }
+  }
+
+  private isCurrentSession(session: AbortController): boolean {
+    return this.session === session && !session.signal.aborted;
+  }
+
+  private closedError(): DOMException {
+    return new DOMException('HTTP connection closed', 'AbortError');
   }
 
   private createTransportUrl(): URL {
@@ -310,12 +338,13 @@ export class HttpTransport implements ClientTransport {
     };
   }
 
-  private dispatchPayload(payload: unknown): void {
-    if (!payload || !this.messageCallback) {
+  private dispatchPayload(payload: unknown, session: AbortController): void {
+    if (!this.isCurrentSession(session) || !payload || !this.messageCallback) {
       return;
     }
     if (Array.isArray(payload)) {
       for (const message of payload) {
+        if (!this.isCurrentSession(session)) return;
         this.messageCallback(message as MsgWrapper);
       }
       return;
