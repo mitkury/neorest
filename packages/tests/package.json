@@ -8,6 +8,8 @@
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/ws": "^8.18.1",
-    "ws": "^8.21.1"
+    "ws": "^8.21.1",
+    "@fails-components/webtransport": "^1.6.7",
+    "@fails-components/webtransport-transport-http3-quiche": "^1.6.7"
   }
 }
