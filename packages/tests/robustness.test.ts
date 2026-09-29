@@ -267,3 +267,20 @@ describe('robustness boundaries', () => {
     }
   });
 });
+
+describe('subscription keys', () => {
+  it('treats Object prototype names as ordinary route names', async () => {
+    const port = await portManager.getNextPort();
+    const server = new NodeRouter({ port, disableWebSocket: true });
+    await server.start();
+    const client = new Client(`http://localhost:${port}`, 'http');
+    try {
+      await client.connect();
+      await expect(client.subscribe('constructor', () => {})).resolves.toBeUndefined();
+      await expect(client.subscribe('constructor', () => {})).rejects.toThrow('already has a subscription');
+    } finally {
+      client.close();
+      await server.close();
+    }
+  });
+});

@@ -27,7 +27,7 @@ export class ClientConnection extends ConnectionBase {
   private isClosing = false;
   private isReplacingTransport = false;
   private isReconnecting = false;
-  private subscribedRoutes: Record<string, (broadcast: BroadcastEvent) => void> = {};
+  private subscribedRoutes = new Map<string, (broadcast: BroadcastEvent) => void>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectOptions: ReconnectOptions | undefined;
   private reconnectAttempts = 0;
@@ -75,8 +75,6 @@ export class ClientConnection extends ConnectionBase {
     ) {
       throw new Error('Connection timeout must be a positive number');
     }
-    
-    this.onClientConnect = () => {};
     
     // Set up reconnect options
     this.reconnectOptions = options?.reconnect === false
@@ -299,14 +297,7 @@ export class ClientConnection extends ConnectionBase {
    * @param callback - The callback to call when a message is received on the route
    * @returns A promise that resolves when the subscription is established
    */
-  public on<T = any>(
-    route: string,
-    callback: (broadcast: BroadcastEvent<T>) => void,
-  ): Promise<void> {
-    return this.connSubscribe(route, callback);
-  }
-
-  private async connSubscribe<T = any>(
+  public async on<T = any>(
     route: string,
     callback: (broadcast: BroadcastEvent<T>) => void,
   ): Promise<void> {
@@ -314,27 +305,19 @@ export class ClientConnection extends ConnectionBase {
     if (typeof callback !== 'function') {
       throw new TypeError('Subscription callback must be a function');
     }
-    if (this.subscribedRoutes[route]) {
+    if (this.subscribedRoutes.has(route)) {
       throw new Error(`Route "${route}" already has a subscription`);
     }
 
     const registeredCallback = callback as (broadcast: BroadcastEvent) => void;
-    this.subscribedRoutes[route] = registeredCallback;
+    this.subscribedRoutes.set(route, registeredCallback);
 
     try {
       await this.waitForConnection(this.requestTimeoutMs ?? 5000);
-      await new Promise<void>((resolve, reject) => {
-        this.post(new_MsgSubscribeToRoute(route), (response) => {
-          if (response.error) {
-            reject(new Error(`Failed to subscribe to route "${route}": ${response.error}`));
-          } else {
-            resolve();
-          }
-        }, this.requestTimeoutMs);
-      });
+      await this.subscribeToRoute(route, this.requestTimeoutMs);
     } catch (error) {
-      if (this.subscribedRoutes[route] === registeredCallback) {
-        delete this.subscribedRoutes[route];
+      if (this.subscribedRoutes.get(route) === registeredCallback) {
+        this.subscribedRoutes.delete(route);
       }
       if (error instanceof Error && error.message === 'Connection timeout') {
         throw new Error(`Connection timeout for subscription to ${route}`);
@@ -381,7 +364,7 @@ export class ClientConnection extends ConnectionBase {
     }, this.requestTimeoutMs);
 
     // Remove route from subscribed routes
-    delete this.subscribedRoutes[route];
+    this.subscribedRoutes.delete(route);
   }
 
   /**
@@ -442,7 +425,7 @@ export class ClientConnection extends ConnectionBase {
         if (listener) listener(routeMsg.data as unknown as LiveServerEvent);
         return new_MsgResponseOK(_, 'ok');
       }
-      const sub = this.subscribedRoutes[routeMsg.route];
+      const sub = this.subscribedRoutes.get(routeMsg.route);
       
       if (sub) {
         const action = routeMsg.verb as "POST" | "DELETE" | "UPDATE";
@@ -451,8 +434,6 @@ export class ClientConnection extends ConnectionBase {
       
       return new_MsgResponseOK(_, "ok");
     });
-
-    // DATA_SET messages are no longer used - secret is embedded in connection URL
   }
 
   /**
@@ -498,7 +479,8 @@ export class ClientConnection extends ConnectionBase {
       if (this.isClosing) return;
 
       // Recovery is complete only after every subscription is acknowledged.
-      await this.resubscribeToRoutes();
+      await Promise.all([...this.subscribedRoutes.keys()].map((route) =>
+        this.subscribeToRoute(route, this.requestTimeoutMs ?? 5000)));
       if (this.isClosing) return;
       if (!transport.isConnected()) throw new Error('Connection closed during recovery');
       this.isReconnecting = false;
@@ -539,21 +521,16 @@ export class ClientConnection extends ConnectionBase {
     }
   }
 
-  /**
-   * Resubscribe to all routes
-   */
-  private async resubscribeToRoutes(): Promise<void> {
-    await Promise.all(Object.keys(this.subscribedRoutes).map((route) => {
-      return new Promise<void>((resolve, reject) => {
-        this.post(new_MsgSubscribeToRoute(route), (response) => {
-          if (response.error) {
-            reject(new Error(`Failed to resubscribe to route "${route}": ${response.error}`));
-          } else {
-            resolve();
-          }
-        }, this.requestTimeoutMs ?? 5000);
-      });
-    }));
+  private subscribeToRoute(route: string, timeoutMs: number | undefined): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.post(new_MsgSubscribeToRoute(route), (response) => {
+        if (response.error) {
+          reject(new Error(`Failed to subscribe to route "${route}": ${response.error}`));
+        } else {
+          resolve();
+        }
+      }, timeoutMs);
+    });
   }
 
   public setDefaultHeaders(headers: Record<string, string>): void {

@@ -125,16 +125,6 @@ export class WebSocketTransport implements ClientTransport {
    */
   onMessage(callback: (message: MsgWrapper) => void): void {
     this.messageCallback = callback;
-    if (this.socket) {
-      this.socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data as string) as MsgWrapper;
-          this.messageCallback!(data);
-        } catch (error) {
-          console.error("Error parsing message:", error);
-        }
-      };
-    }
   }
 
   /**
@@ -143,12 +133,6 @@ export class WebSocketTransport implements ClientTransport {
    */
   onClose(callback: () => void): void {
     this.closeCallback = callback;
-    if (this.socket) {
-      this.socket.onclose = () => {
-        this.connectionInfo.status = 'disconnected';
-        this.closeCallback!();
-      };
-    }
   }
 
   /**
@@ -157,12 +141,6 @@ export class WebSocketTransport implements ClientTransport {
    */
   onOpen(callback: () => void): void {
     this.openCallback = callback;
-    if (this.socket) {
-      this.socket.onopen = () => {
-        this.connectionInfo.status = 'connected';
-        this.openCallback!();
-      };
-    }
   }
 
   /**
@@ -197,38 +175,27 @@ export class WebSocketTransport implements ClientTransport {
    * Set up socket handlers
    */
   private setupSocketHandlers(socket: WebSocket): void {
-    // Set up message handler
-    if (this.messageCallback) {
-      socket.onmessage = (event) => {
-        if (this.socket !== socket) return;
-        try {
-          const data = JSON.parse(event.data as string) as MsgWrapper;
-          this.messageCallback!(data);
-        } catch (error) {
-          console.error("Error parsing message:", error);
-        }
-      };
-    }
-    
-    // Set up close handler
-    if (this.closeCallback) {
-      socket.onclose = () => {
-        if (this.socket !== socket) return;
-        this.socket = null;
-        this.connectionInfo.status = 'disconnected';
-        this.closeCallback!();
-      };
-    }
-    
-    // Set up open handler
-    if (this.openCallback) {
-      socket.onopen = () => {
-        if (this.socket !== socket) return;
-        this.connectionInfo.status = 'connected';
-        this.openCallback!();
-      };
-    }
-    
+    socket.onmessage = (event) => {
+      if (this.socket !== socket) return;
+      try {
+        const data = JSON.parse(event.data as string) as MsgWrapper;
+        this.messageCallback?.(data);
+      } catch (error) {
+        console.error("Error parsing message:", error);
+      }
+    };
+    socket.onclose = () => {
+      if (this.socket !== socket) return;
+      this.socket = null;
+      this.connectionInfo.status = 'disconnected';
+      this.closeCallback?.();
+    };
+    socket.onopen = () => {
+      if (this.socket !== socket) return;
+      this.connectionInfo.status = 'connected';
+      this.openCallback?.();
+    };
+
     // Set up error handler
     socket.onerror = (error) => {
       if (this.socket === socket && !this.isClosing) {
