@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Neorest ping</title>
+    <style>
+      body {
+        max-width: 32rem;
+        margin: 4rem auto;
+        padding: 0 1rem;
+        font: 1rem/1.5 system-ui, sans-serif;
+      }
+
+      button {
+        padding: 0.6rem 1rem;
+      }
+
+      output {
+        margin-left: 0.75rem;
+        font-family: monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Neorest ping</h1>
+    <p>One route, one request, one response.</p>
+
+    <button id="ping" disabled>GET /ping</button>
+    <output id="result">Connecting…</output>
+
+    <script type="module">
+      import { Client } from 'neorest';
+
+      const button = document.querySelector('#ping');
+      const result = document.querySelector('#result');
+      const client = new Client('http://localhost:3000', 'auto');
+
+      await client.connect();
+      button.disabled = false;
+      result.textContent = 'Connected';
+
+      button.addEventListener('click', async () => {
+        const response = await client.get('/ping');
+        result.textContent = response.data;
+      });
+    </script>
+  </body>
+</html>

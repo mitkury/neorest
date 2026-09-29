@@ -1,6 +1,6 @@
 {
   "deno.enablePaths": [
-    "./tests"
+    "./packages/router-deno"
   ],
   "deno.lint": true,
 }

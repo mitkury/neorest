@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Neorest chat</title>
+    <style>
+      body {
+        max-width: 36rem;
+        margin: 4rem auto;
+        padding: 0 1rem;
+        font: 1rem/1.5 system-ui, sans-serif;
+      }
+
+      form {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      input {
+        flex: 1;
+        padding: 0.6rem;
+      }
+
+      button {
+        padding: 0.6rem 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Neorest chat</h1>
+    <p>Open this page in two tabs to see real-time updates.</p>
+
+    <ul id="messages"></ul>
+
+    <form id="form">
+      <input id="text" aria-label="Message" autocomplete="off" required />
+      <button>Send</button>
+    </form>
+
+    <script type="module">
+      import { Client } from 'neorest';
+
+      const list = document.querySelector('#messages');
+      const form = document.querySelector('#form');
+      const input = document.querySelector('#text');
+      const client = new Client('http://localhost:3002', 'auto');
+
+      function addMessage(message) {
+        const item = document.createElement('li');
+        item.textContent = message.text;
+        list.append(item);
+      }
+
+      await client.connect();
+
+      const response = await client.get('/messages');
+      response.data.forEach(addMessage);
+
+      await client.subscribe('/messages', (event) => {
+        addMessage(event.data);
+      });
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const response = await client.post('/messages', { text: input.value });
+        addMessage(response.data);
+        input.value = '';
+      });
+    </script>
+  </body>
+</html>

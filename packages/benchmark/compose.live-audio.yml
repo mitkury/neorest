@@ -1,0 +1,11 @@
+services:
+  live-audio:
+    build:
+      context: ../..
+      dockerfile: packages/benchmark/live-audio.Dockerfile
+    cap_add:
+      - NET_ADMIN
+    environment:
+      NETWORK_PROFILE: ${NETWORK_PROFILE:-wifi}
+    volumes:
+      - ./artifacts:/app/packages/benchmark/artifacts
